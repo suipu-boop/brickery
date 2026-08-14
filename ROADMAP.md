@@ -22,6 +22,8 @@ AIGC:
 
 ## 定位（一句话）
 
+**别名**：积木平台 / 造 agent 的工厂 / brickery —— 均指本仓库 `/Users/suipu/Dev/brickery`。
+
 brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的品牌产品。产出 agent 本地独立运行，不依赖 Shadeling。
 
 ## 当前状态
