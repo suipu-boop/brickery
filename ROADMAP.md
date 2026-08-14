@@ -32,11 +32,12 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - Shadeling 内组装/积木代码已全部移除（commit `5cc35b5`，已 push）
 - 工厂能力全部归 brickery
 
-**阶段二心脏归位：B1+B2 已完成，B3 待开工**
+**阶段二心脏归位：B1+B2+B3 已完成，B4 待开工**
 - 规划文档：`specs/p3-runtime.md`
 - B1 纯数据层已迁入 `brickery/runtime/`（config / model_catalog / rules / textutil / paths），16 单测通过
 - B2 引擎层已迁入（engine_router / engine_providers / supervisor），23 单测通过；loop 依赖 B3/B5 模块，待 B3 后迁
-- 下一步：B3 工具技能层（tools / tool_providers / builtin_tools / sandbox / mcp / skills / skill_library / binary_manager）
+- B3 工具技能层已迁入（tools / skills / skill_library / sandbox / mcp / binary_manager + builtin_tools / tool_providers / doc_tools / repo_map / vault_store / vault_tool / docwrite / docwrite_pro / docwrite_templates / edsdk_pro），77 单测通过；loop 依赖 B5 interoception，待 B5 后迁
+- 下一步：B4 记忆层（memory/ 包 / memory_providers / vault_store）
 
 ## 今日进度（2026-08-15）
 
@@ -46,6 +47,8 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - 核心测试 12 通过；1 个 API 500 冒烟测试失败为改动前既有问题
 - **B1 纯数据层迁移完成**：config / model_catalog / rules / textutil / paths 迁入 `brickery/runtime/`，路径改造为 brickery 专属（BRICKERY_HOME / ~/.brickery），16 单测通过
 - **B2 引擎层迁移完成**：engine_router / engine_providers / supervisor 迁入 `brickery/runtime/`（engine_providers 3 处 `from config import paths` 改相对导入），23 单测通过
+- **B3 工具技能层迁移完成**：核心 6 模块（tools / skills / skill_library / sandbox / mcp / binary_manager）+ 工具实现 10 模块（builtin_tools / tool_providers / doc_tools / repo_map / vault_store / vault_tool / docwrite / docwrite_pro / docwrite_templates / edsdk_pro）迁入 `brickery/runtime/`，fixtures/skill_repo 迁入 `brickery/fixtures/`，77 单测通过
+- 全量单测 116 通过（`python -m unittest discover -s brickery/runtime/tests -t brickery -p "test_*.py"`）
 
 ## 与原本计划的差异
 
@@ -72,14 +75,14 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 
 - [x] B1 纯数据层：config / model_catalog / rules / textutil → brickery/runtime/（16 单测通过）
 - [x] B2 引擎层：engine_router / engine_providers / supervisor → brickery/runtime/（23 单测通过；loop 依赖 B3/B5，待 B3 后迁）
-- [ ] B3 工具技能层：tools / tool_providers / builtin_tools / sandbox / mcp / skills / skill_library / binary_manager
+- [x] B3 工具技能层：tools / skills / skill_library / sandbox / mcp / binary_manager + builtin_tools / tool_providers / doc_tools / repo_map / vault_store / vault_tool / docwrite / docwrite_pro / docwrite_templates / edsdk_pro → brickery/runtime/（77 单测通过；loop 依赖 B5 interoception，待 B5 后迁）
 - [ ] B4 记忆层：memory/ 包 / memory_providers / vault_store
 - [ ] B5 服务层：ipc / daemon / sessions / scheduler / gateway / confirm / interoception
 - [ ] B6 产出链路：produce.py 打包运行时进 .app，run.sh 改入口
 
 ## 下一步
 
-**B3 工具技能层迁移**：把 tools / tool_providers / builtin_tools / sandbox / mcp / skills / skill_library / binary_manager 迁入 `brickery/runtime/`，随后补迁 loop 跑通独立对话。
+**B4 记忆层迁移**：把 memory/ 包 / memory_providers / vault_store 迁入 `brickery/runtime/`，随后 B5 服务层迁入后补迁 loop 跑通独立对话。
 
 ## 关键路径
 
