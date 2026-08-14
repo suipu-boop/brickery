@@ -32,14 +32,14 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - Shadeling 内组装/积木代码已全部移除（commit `5cc35b5`，已 push）
 - 工厂能力全部归 brickery
 
-**阶段二心脏归位：B1+B2+B3+B4+B5 已完成，B6 待开工**
+**阶段二心脏归位：B1–B6 全部完成**
 - 规划文档：`specs/p3-runtime.md`
 - B1 纯数据层已迁入 `brickery/runtime/`（config / model_catalog / rules / textutil / paths），16 单测通过
 - B2 引擎层已迁入（engine_router / engine_providers / supervisor），23 单测通过
 - B3 工具技能层已迁入（tools / skills / skill_library / sandbox / mcp / binary_manager + builtin_tools / tool_providers / doc_tools / repo_map / vault_store / vault_tool / docwrite / docwrite_pro / docwrite_templates / edsdk_pro），77 单测通过
 - B4 记忆层已迁入（memory/ 包 17 文件 + memory_providers），54 单测通过
 - B5 服务层已迁入（ipc / daemon / sessions / scheduler / gateway / confirm / interoception/ + loop），195 单测通过；test_surfacing 迁回，memory 69 单测通过
-- 下一步：B6 产出链路（produce.py 打包运行时进 .app，run.sh 改入口）
+- B6 产出链路已完成：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令；e2e 全链路通过，全量单测 263 passed + 1 skipped
 
 ## 今日进度（2026-08-15）
 
@@ -70,7 +70,7 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 | P1 | 产出链路（方案 → 独立安装包） | 完成 |
 | P2 | 本地 Web 面板（127.0.0.1） | 完成 |
 | 阶段一 | 断寄生（Shadeling 清空组装代码） | 完成 |
-| **阶段二** | **心脏归位（P3 独立运行时）** | **待开工** |
+| **阶段二** | **心脏归位（P3 独立运行时）** | **完成** |
 | P4 | .dmg 打包 + 签名/公证 | 待办 |
 | P5 | Shadeling 接入为第一个成品 | 待办 |
 | P6 | 积木市场（brick-vault 在线浏览/安装） | 待办 |
@@ -82,7 +82,7 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - [x] B3 工具技能层：tools / skills / skill_library / sandbox / mcp / binary_manager + builtin_tools / tool_providers / doc_tools / repo_map / vault_store / vault_tool / docwrite / docwrite_pro / docwrite_templates / edsdk_pro → brickery/runtime/（77 单测通过；loop 依赖 B5 interoception，待 B5 后迁）
 - [x] B4 记忆层：memory/ 包（17 文件）→ brickery/memory/，memory_providers → brickery/runtime/（54 单测通过）
 - [x] B5 服务层：ipc / daemon / sessions / scheduler / gateway / confirm / interoception/ + loop → brickery/runtime/（195 单测通过；test_surfacing 迁回，memory 69 单测通过）
-- [ ] B6 产出链路：produce.py 打包运行时进 .app，run.sh 改入口
+- [x] B6 产出链路：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令（e2e 全链路通过）
 
 ## 下一步
 

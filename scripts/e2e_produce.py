@@ -59,9 +59,18 @@ def main() -> int:
         assert len(brick_files) == len(plan.order), "积木快照数量不符"
         assert (out / "run.sh").exists(), "run.sh 缺失"
         assert (out / f"{args.name}.app" / "Contents" / "Info.plist").exists(), ".app 骨架缺失"
+        # B6：独立运行时打包校验
+        rt = out / f"{args.name}.app" / "Contents" / "Resources" / "brickery-runtime" / "brickery"
+        assert (rt / "runtime" / "ipc.py").exists(), "brickery-runtime 未打包 runtime/ipc"
+        assert (rt / "memory" / "__init__.py").exists(), "brickery-runtime 未打包 memory/"
+        assert (rt / "produce.py").exists(), "brickery-runtime 未打包 produce.py"
+        run_sh = (out / "run.sh").read_text(encoding="utf-8")
+        assert "brickery-runtime" in run_sh, "run.sh 未引用打包运行时"
+        assert "shadeling" not in run_sh, "run.sh 仍依赖宿主 shadeling 命令"
         print(f"      ✓ agent.json（{len(brick_files)} 个积木快照）")
-        print(f"      ✓ run.sh 启动脚本")
+        print(f"      ✓ run.sh 启动脚本（独立运行时入口）")
         print(f"      ✓ {args.name}.app 安装包骨架")
+        print(f"      ✓ brickery-runtime 已打包进 .app（runtime+memory）")
         print(f"      ✓ 产出目录：{out}")
 
         # 4) 列出

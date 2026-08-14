@@ -37,7 +37,7 @@ class ProduceMeta:
     version: str = "0.1.0"
     author: str = ""
     entry: str = "run.sh"          # 启动入口（相对 agent 目录）
-    runtime: str = "shadeling"     # 宿主运行时（当前第一个成品用 Shadeling）
+    runtime: str = "brickery"      # 独立运行时（B6 起打包 brickery-runtime，不依赖宿主）
 
 
 class ProduceError(ValueError):
@@ -132,17 +132,23 @@ def _find_manifest(vault: Path, brick_name: str) -> Optional[Path]:
 def _write_run_script(out_dir: Path, meta: ProduceMeta) -> None:
     """生成 run.sh：拉起产出 agent 的独立运行时。
 
-    当前第一个成品用 Shadeling 作为宿主运行时；后续可替换为 brickery 自带运行时。
+    只走 .app 内打包的 brickery-runtime（B1–B5 全部，双击即跑），
+    不依赖任何宿主运行时命令（Shadeling 等）。
     """
     script = f"""#!/bin/bash
 # {meta.name} —— 由 Brickery 产出的独立 agent
-# 启动入口：拉起宿主运行时，按 agent.json 装配清单激活积木
+# 启动入口：.app 内打包的 brickery-runtime，不依赖宿主运行时
 set -euo pipefail
 AGENT_DIR="$(cd "$(dirname "$0")" && pwd)"
-echo "[{meta.name}] 启动（runtime={meta.runtime}）"
-# 宿主运行时入口：优先环境变量，其次默认路径
-RUNTIME_CMD="${{BRICKERY_RUNTIME:-shadeling}}"
-exec "$RUNTIME_CMD" run "$AGENT_DIR/agent.json"
+APP_DIR="$(ls -d "$AGENT_DIR"/*.app 2>/dev/null | head -1 || true)"
+RUNTIME_DIR="$APP_DIR/Contents/Resources/brickery-runtime"
+if [ -z "$APP_DIR" ] || [ ! -d "$RUNTIME_DIR" ]; then
+  echo "[{meta.name}] 错误：未找到打包运行时（$RUNTIME_DIR）" >&2
+  exit 1
+fi
+echo "[{meta.name}] 启动（独立运行时）"
+export PYTHONPATH="$RUNTIME_DIR"
+exec python3 -m brickery.runtime.ipc --home "$AGENT_DIR"
 """
     run_sh = out_dir / "run.sh"
     run_sh.write_text(script, encoding="utf-8")
@@ -150,15 +156,18 @@ exec "$RUNTIME_CMD" run "$AGENT_DIR/agent.json"
 
 
 def _bundle_app(out_dir: Path, meta: ProduceMeta) -> None:
-    """生成 macOS .app 骨架（可打包 .dmg 分发）。
+    """生成 macOS .app（可打包 .dmg 分发）。
 
-    骨架：Contents/Info.plist + MacOS/launcher（调用 run.sh）。
+    结构：Contents/Info.plist + MacOS/launcher + Resources/brickery-runtime/
+    （打包进来的独立运行时 B1–B5 全部）+ Resources/agent.json + Resources/bricks/。
     完整签名 / 公证 / dmg 打包留待后续阶段。
     """
     app_dir = out_dir / f"{meta.name}.app"
     contents = app_dir / "Contents"
     macos = contents / "MacOS"
+    resources = contents / "Resources"
     macos.mkdir(parents=True, exist_ok=True)
+    resources.mkdir(parents=True, exist_ok=True)
 
     plist = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -187,6 +196,28 @@ exec "$APP_DIR/run.sh"
     launcher_path = macos / "launcher"
     launcher_path.write_text(launcher, encoding="utf-8")
     launcher_path.chmod(launcher_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    # 打包独立运行时：复制 brickery 包（B1–B5 全部）进 Resources/brickery-runtime/
+    _bundle_runtime(resources)
+
+    # 复制装配清单与积木快照进 Resources/
+    shutil.copy2(out_dir / "agent.json", resources / "agent.json")
+    shutil.copytree(out_dir / "bricks", resources / "bricks")
+
+
+def _bundle_runtime(resources: Path) -> None:
+    """把 brickery 包（B1–B5 全部）复制进 Resources/brickery-runtime/。
+
+    排除 __pycache__ / tests / fixtures / web（运行时不需要）。
+    """
+    src = Path(__file__).resolve().parent  # brickery/ 包目录
+    dst = resources / "brickery-runtime" / "brickery"
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(
+        src, dst,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "tests", "fixtures", "web"),
+    )
 
 
 def list_agents(agents_root: Optional[Path] = None) -> List[dict]:
