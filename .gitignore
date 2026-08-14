@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# macOS
+.DS_Store
+
+# 产出物（本地 agent 包不入库）
+.brickery/
+
+# 编辑器
+.idea/
+.vscode/

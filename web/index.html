@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brickery · 造 agent 的工厂</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --line: #e3e6ea;
+    --ink: #1f2430; --sub: #6b7280;
+    --accent: #4f6ef7; --accent-ink: #ffffff;
+    --ok: #16a34a; --warn: #d97706; --bad: #dc2626;
+    --low: #e8f5ee; --mid: #fef3e2; --high: #fde8e8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 14px;
+  }
+  header {
+    background: var(--card); border-bottom: 1px solid var(--line);
+    padding: 14px 24px; display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header h1 span { color: var(--accent); }
+  header .tag {
+    font-size: 12px; color: var(--sub); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 20px; padding: 3px 10px;
+  }
+  main { display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px; padding: 16px 24px; }
+  .panel {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .panel h2 { font-size: 13px; color: var(--sub); font-weight: 600; }
+  #search {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 8px; font-size: 13px; outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  #brick-list { overflow-y: auto; max-height: 70vh; display: flex; flex-direction: column; gap: 6px; }
+  .brick {
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+    cursor: grab; background: var(--card); transition: border-color .15s;
+  }
+  .brick:hover { border-color: var(--accent); }
+  .brick .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .brick .name { font-weight: 600; }
+  .brick .desc { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  .risk { font-size: 11px; border-radius: 4px; padding: 1px 6px; }
+  .risk.low { background: var(--low); color: var(--ok); }
+  .risk.mid { background: var(--mid); color: var(--warn); }
+  .risk.high { background: var(--high); color: var(--bad); }
+  #assembly { min-height: 200px; }
+  #assembly .empty {
+    color: var(--sub); text-align: center; padding: 40px 0; border: 2px dashed var(--line);
+    border-radius: 8px; font-size: 13px;
+  }
+  #assembly-list { display: flex; flex-direction: column; gap: 6px; }
+  .chip {
+    display: flex; justify-content: space-between; align-items: center;
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg);
+  }
+  .chip .rm {
+    border: none; background: none; color: var(--sub); cursor: pointer; font-size: 15px;
+  }
+  .chip .rm:hover { color: var(--bad); }
+  .meta input, .meta textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 8px; font-size: 13px; outline: none; font-family: inherit;
+  }
+  .meta input:focus, .meta textarea:focus { border-color: var(--accent); }
+  .meta textarea { resize: vertical; min-height: 48px; }
+  #plan { font-size: 13px; }
+  #plan .line { padding: 4px 0; }
+  #plan .order { color: var(--sub); }
+  #plan .order b { color: var(--ink); }
+  .res { display: flex; gap: 12px; flex-wrap: wrap; }
+  .res .item { background: var(--bg); border-radius: 6px; padding: 4px 10px; font-size: 12px; }
+  .res .item b { color: var(--accent); }
+  #error { color: var(--bad); font-size: 13px; min-height: 18px; }
+  #produce-btn {
+    background: var(--accent); color: var(--accent-ink); border: none;
+    border-radius: 8px; padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  #produce-btn:disabled { opacity: .5; cursor: not-allowed; }
+  #result { font-size: 12px; color: var(--ok); word-break: break-all; }
+  footer { padding: 8px 24px 20px; color: var(--sub); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Brickery <span>· 造 agent 的工厂</span></h1>
+  <span class="tag">拖积木 → 校验 → 产出独立 agent</span>
+</header>
+
+<main>
+  <!-- 左：积木库 -->
+  <section class="panel">
+    <h2>积木库（brick-vault）</h2>
+    <input id="search" placeholder="搜索积木…">
+    <div id="brick-list"></div>
+  </section>
+
+  <!-- 中：组装区 -->
+  <section class="panel">
+    <h2>组装区（点击积木加入，点 × 移除）</h2>
+    <div id="assembly">
+      <div class="empty" id="empty-hint">从左侧点选积木，开始拼装你的 agent</div>
+      <div id="assembly-list"></div>
+    </div>
+  </section>
+
+  <!-- 右：方案与产出 -->
+  <section class="panel">
+    <h2>方案与产出</h2>
+    <div class="meta">
+      <input id="agent-name" placeholder="agent 名称（如 my-assistant）">
+      <textarea id="agent-desc" placeholder="一句话描述这个 agent 是干什么的"></textarea>
+    </div>
+    <div id="plan">
+      <div class="line">安装顺序：<span class="order" id="plan-order">（未组装）</span></div>
+      <div class="res" id="plan-res"></div>
+    </div>
+    <div id="error"></div>
+    <button id="produce-btn" disabled>产出独立 agent 包</button>
+    <div id="result"></div>
+  </section>
+</main>
+
+<footer>Brickery 本地工作台 · 积木来自 brick-vault · 产出物在 ~/.brickery/agents/</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let bricks = [];
+let selected = new Set();
+
+async function loadBricks() {
+  const r = await fetch('/api/bricks');
+  const data = await r.json();
+  if (data.error) { $('brick-list').textContent = '加载失败：' + data.error; return; }
+  bricks = data.bricks;
+  renderBrickList();
+}
+
+function renderBrickList() {
+  const q = $('search').value.trim().toLowerCase();
+  const list = bricks.filter(b => !q || b.name.includes(q) || (b.description || '').toLowerCase().includes(q));
+  $('brick-list').innerHTML = list.map(b => `
+    <div class="brick" onclick="toggle('${b.name}')">
+      <div class="row">
+        <span class="name">${b.name}</span>
+        <span class="risk ${b.risk_level}">${riskText(b.risk_level)}</span>
+      </div>
+      <div class="desc">${b.description || b.name}</div>
+    </div>`).join('');
+}
+
+function riskText(r) { return {low:'低风险', mid:'中风险', high:'高风险'}[r] || r; }
+
+function toggle(name) {
+  if (selected.has(name)) selected.delete(name); else selected.add(name);
+  renderAssembly();
+  checkPlan();
+}
+
+function renderAssembly() {
+  $('empty-hint').style.display = selected.size ? 'none' : 'block';
+  $('assembly-list').innerHTML = [...selected].map(name => {
+    const b = bricks.find(x => x.name === name);
+    return `<div class="chip"><span>${name} <span class="risk ${b.risk_level}">${riskText(b.risk_level)}</span></span>
+      <button class="rm" onclick="toggle('${name}')">×</button></div>`;
+  }).join('');
+}
+
+async function checkPlan() {
+  $('error').textContent = '';
+  $('result').textContent = '';
+  if (!selected.size) {
+    $('plan-order').textContent = '（未组装）';
+    $('plan-res').innerHTML = '';
+    $('produce-btn').disabled = true;
+    return;
+  }
+  const r = await fetch('/api/assemble', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({selected: [...selected]})
+  });
+  const data = await r.json();
+  if (!data.ok) {
+    $('error').textContent = '校验失败：' + data.error;
+    $('plan-order').textContent = '（校验失败）';
+    $('plan-res').innerHTML = '';
+    $('produce-btn').disabled = true;
+    return;
+  }
+  const p = data.plan;
+  $('plan-order').innerHTML = p.order.map(n => `<b>${n}</b>`).join(' → ');
+  const res = p.resources_total;
+  $('plan-res').innerHTML = `
+    <span class="item">内存 <b>${res.memory_mb}MB</b></span>
+    <span class="item">磁盘 <b>${res.disk_mb}MB</b></span>
+    <span class="item">端口 <b>${res.ports.join(',') || '无'}</b></span>`;
+  $('produce-btn').disabled = false;
+}
+
+async function produce() {
+  const name = $('agent-name').value.trim();
+  if (!name) { $('error').textContent = '请先填写 agent 名称'; return; }
+  $('produce-btn').disabled = true;
+  $('result').textContent = '正在产出…';
+  const r = await fetch('/api/produce', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      selected: [...selected],
+      name,
+      description: $('agent-desc').value.trim()
+    })
+  });
+  const data = await r.json();
+  if (!data.ok) {
+    $('error').textContent = '产出失败：' + data.error;
+    $('result').textContent = '';
+    $('produce-btn').disabled = false;
+    return;
+  }
+  $('result').textContent = '已产出：' + data.path;
+  $('produce-btn').disabled = false;
+}
+
+$('search').addEventListener('input', renderBrickList);
+$('produce-btn').addEventListener('click', produce);
+loadBricks();
+</script>
+</body>
+</html>
