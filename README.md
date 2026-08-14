@@ -12,9 +12,18 @@ AIGC:
 # Brickery · 造 agent 的工厂
 
 一个**独立的「造 agent 的工厂」**：用户拖积木拼装，产出**独立可运行的 agent**（独立安装包）。
-Shadeling 只是本平台产出的第一个成品。
+
+- **brickery = 平台**：拥有 agent 内核运行时（心脏），是唯一造 agent 的地方
+- **Shadeling = 产出物品牌**：brickery 产出的 agent 都可以叫 Shadeling，它用 brickery 的心脏，不是心脏的提供者
+- 产出的 agent **本地独立运行**，不依赖 Shadeling 进程
 
 > 从 Shadeling 抽离而来（2026-08-14）。积木平台从来不是"植入 agent 中"，而是独立的产出平台。
+
+## 当前进度（2026-08-15）
+
+- **阶段一断寄生：已完成** —— Shadeling 内组装/积木代码已清空，工厂能力全部归 brickery
+- **阶段二心脏归位：规划已落盘，待开工** —— 把心脏（内核运行时）从 Shadeling 抽到 brickery，产出 agent 自带运行时、双击即跑
+- 详细进度与下一步见 [`ROADMAP.md`](ROADMAP.md)；规划见 `specs/` 目录
 
 ## 怎么用
 
@@ -60,9 +69,9 @@ brickery/
 
 | 仓库 | 角色 |
 |------|------|
-| **brickery**（本仓） | agent 产出平台：组装工作台 + 产出运行时 |
-| shadeling | 第一个成品 agent（被产出 / 被运行） |
-| brick-vault | 积木库（brick.json 契约的唯一事实源） |
+| **brickery**（本仓） | agent 产出平台：组装工作台 + 心脏（内核运行时） |
+| shadeling | 产出物品牌：brickery 产出的 agent（用 brickery 的心脏） |
+| brick-vault | 积木库（brick.json 契约的唯一事实源，不动） |
 
 ## 设计铁律
 

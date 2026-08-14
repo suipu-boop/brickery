@@ -12,12 +12,16 @@ AIGC:
 # Brickery 平台规划
 
 > 状态：**已授权开工（2026-08-14，用户拍板：A1 / B 独立安装包 / C1+Brickery / D1）**
+> 进度：**阶段一断寄生已完成（2026-08-15）**；阶段二心脏归位规划已落盘（`p3-runtime.md`），待开工。
 > 本文件是 brickery 仓库的规划主体；Shadeling 侧 `specs/agent-factory.md` 为抽离方案记录。
 
 ## 1. 定位
 
 **独立的「造 agent 的工厂」**：用户拖积木拼装，产出**独立可运行的 agent**（独立安装包）。
-Shadeling 只是工厂产出的第一个成品。
+
+- **brickery = 平台**：拥有 agent 内核运行时（心脏），是唯一造 agent 的地方
+- **Shadeling = 产出物品牌**：brickery 产出的 agent 都可以叫 Shadeling，它用 brickery 的心脏，不是心脏的提供者
+- 产出的 agent **本地独立运行**，不依赖 Shadeling 进程
 
 ## 2. 已拍板决策
 
@@ -39,6 +43,8 @@ Shadeling 只是工厂产出的第一个成品。
 | `web/server.py` | 本地 Web 面板后端（127.0.0.1） | 新建 |
 | `web/index.html` | 组装工作台前端（拖拽 UI） | 新建 |
 
+> 阶段一（2026-08-15）后：Shadeling 内组装/积木代码已全部清空，工厂能力全部归本仓；心脏（内核运行时）仍在 Shadeling，待阶段二迁入 `brickery/runtime/`。
+
 ## 4. 动态激活的宿主委托
 
 brick_runtime 是「平台侧激活协议」，真正激活时委托宿主内核机制（registry / factory）。
@@ -51,10 +57,13 @@ brick_runtime 是「平台侧激活协议」，真正激活时委托宿主内核
 - [x] P0 仓库骨架 + 核心代码迁移（assembler / brick_runtime / skill_contract）
 - [x] P1 产出链路：方案 → 独立安装包（agent.json + bricks 快照 + run.sh + .app 骨架）
 - [x] P2 本地 Web 面板：拖拽组装工作台（127.0.0.1）
-- [ ] P3 独立运行时：产出 agent 不依赖 Shadeling 进程即可运行
+- [x] 阶段一 断寄生：Shadeling 内组装/积木代码清空（2026-08-15）
+- [ ] 阶段二 心脏归位（P3 独立运行时）：规划已落盘（`p3-runtime.md`，B1–B6 分批），待开工
 - [ ] P4 .dmg 打包 + 签名/公证，真正可分发的安装包
 - [ ] P5 Shadeling 接入为第一个成品（产出 Shadeling 装配方案）
 - [ ] P6 积木市场：从 brick-vault 在线浏览/安装积木
+
+> 与原本计划的差异：原路线图只有 P0–P6；实际推进新增「阶段一断寄生」，并把 P3 细化为「阶段二心脏归位」（B1–B6 分批迁移，详见 `p3-runtime.md`）。
 
 ## 6. 验收标准
 
