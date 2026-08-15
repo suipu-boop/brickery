@@ -3,110 +3,288 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Brickery · 造 agent 的工厂</title>
+<title>Brickery 工坊 · 造 agent 的工厂</title>
 <style>
+  /* ============ 工坊蓝图风：暖纸底 + 墨字 + 琥珀/朱红 ============ */
   :root {
-    --bg: #f5f6f8; --card: #ffffff; --line: #e3e6ea;
-    --ink: #1f2430; --sub: #6b7280;
-    --accent: #4f6ef7; --accent-ink: #ffffff;
-    --ok: #16a34a; --warn: #d97706; --bad: #dc2626;
-    --low: #e8f5ee; --mid: #fef3e2; --high: #fde8e8;
+    --paper: #f2ecdf;        /* 暖纸底 */
+    --paper-deep: #e9e1cf;   /* 深一档纸 */
+    --card: #faf6ec;         /* 卡片纸 */
+    --line: #d6cbb4;         /* 蓝图线（浅棕） */
+    --line-strong: #b8a98c;  /* 强线 */
+    --ink: #2b2620;          /* 墨色 */
+    --ink-soft: #6b6152;     /* 次级墨 */
+    --ink-faint: #9a8f7c;    /* 弱墨 */
+    --amber: #b45309;        /* 琥珀 */
+    --amber-soft: #e8c98f;
+    --vermilion: #a63a2a;    /* 朱红 */
+    --ok: #3f6b3f;           /* 墨绿（低风险） */
+    --warn: #a06a12;         /* 赭黄（中风险） */
+    --bad: #a63a2a;          /* 朱红（高风险） */
+    --shadow: 0 1px 3px rgba(80, 60, 30, .12), 0 4px 14px rgba(80, 60, 30, .08);
+    --radius: 10px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: var(--bg); color: var(--ink); font-size: 14px;
+    font-family: -apple-system, "PingFang SC", "Songti SC", "Microsoft YaHei", sans-serif;
+    background:
+      radial-gradient(circle at 12% 8%, rgba(180, 120, 40, .06), transparent 40%),
+      radial-gradient(circle at 88% 90%, rgba(166, 58, 42, .05), transparent 40%),
+      var(--paper);
+    color: var(--ink); font-size: 14px; line-height: 1.5;
   }
+
+  /* ============ 顶部 ============ */
   header {
-    background: var(--card); border-bottom: 1px solid var(--line);
-    padding: 14px 24px; display: flex; align-items: center; gap: 16px;
+    background: var(--card);
+    border-bottom: 2px solid var(--line-strong);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    box-shadow: var(--shadow);
   }
-  header h1 { font-size: 18px; font-weight: 700; }
-  header h1 span { color: var(--accent); }
-  header .tag {
-    font-size: 12px; color: var(--sub); background: var(--bg);
-    border: 1px solid var(--line); border-radius: 20px; padding: 3px 10px;
+  header .brand { display: flex; align-items: baseline; gap: 10px; }
+  header h1 { font-size: 20px; font-weight: 800; letter-spacing: .5px; }
+  header h1 .accent { color: var(--vermilion); }
+  header .sub { font-size: 12px; color: var(--ink-soft); }
+  .steps { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+  .step {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--ink-soft);
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 20px; padding: 4px 12px;
   }
-  main { display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px; padding: 16px 24px; }
+  .step b {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--amber); color: #fff; font-size: 11px;
+  }
+  .step.done b { background: var(--ok); }
+  .step.active { border-color: var(--amber); color: var(--ink); }
+  .step.active b { background: var(--vermilion); }
+
+  /* ============ 三栏布局 ============ */
+  main {
+    display: grid; grid-template-columns: 340px 1fr 340px; gap: 16px;
+    padding: 18px 24px; align-items: start;
+  }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
   .panel {
-    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-    padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 14px; display: flex; flex-direction: column; gap: 12px;
   }
-  .panel h2 { font-size: 13px; color: var(--sub); font-weight: 600; }
+  .panel > h2 {
+    font-size: 13px; color: var(--ink-soft); font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    border-bottom: 1px dashed var(--line); padding-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel > h2 .count {
+    margin-left: auto; font-size: 11px; color: var(--ink-faint);
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 12px; padding: 1px 8px; letter-spacing: 0;
+  }
+
+  /* ============ 积木库 ============ */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
   #search {
-    width: 100%; padding: 8px 10px; border: 1px solid var(--line);
-    border-radius: 8px; font-size: 13px; outline: none;
+    flex: 1; min-width: 140px; padding: 8px 12px;
+    border: 1px solid var(--line-strong); border-radius: 8px;
+    background: var(--paper); font-size: 13px; color: var(--ink); outline: none;
+    font-family: inherit;
   }
-  #search:focus { border-color: var(--accent); }
-  #brick-list { overflow-y: auto; max-height: 70vh; display: flex; flex-direction: column; gap: 6px; }
+  #search:focus { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(180, 83, 9, .15); }
+  .filters { display: flex; gap: 6px; }
+  .filters button {
+    border: 1px solid var(--line-strong); background: var(--paper);
+    color: var(--ink-soft); border-radius: 20px; padding: 4px 12px;
+    font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .filters button:hover { border-color: var(--amber); color: var(--ink); }
+  .filters button.on { background: var(--amber); border-color: var(--amber); color: #fff; }
+
+  #brick-list { overflow-y: auto; max-height: 72vh; display: flex; flex-direction: column; gap: 10px; }
+  .cat-group { display: flex; flex-direction: column; gap: 6px; }
+  .cat-head {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 12px; font-weight: 700; color: var(--ink-soft);
+    padding: 4px 2px; user-select: none;
+  }
+  .cat-head .arrow { transition: transform .15s; font-size: 10px; color: var(--ink-faint); }
+  .cat-head.collapsed .arrow { transform: rotate(-90deg); }
+  .cat-head .cat-count { font-size: 11px; color: var(--ink-faint); font-weight: 400; }
+  .cat-head:hover { color: var(--ink); }
+  .cat-body { display: flex; flex-direction: column; gap: 6px; }
+  .cat-head.collapsed + .cat-body { display: none; }
+
   .brick {
-    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
-    cursor: grab; background: var(--card); transition: border-color .15s;
+    border: 1px solid var(--line); border-left: 4px solid var(--line-strong);
+    border-radius: 8px; background: var(--paper);
+    cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .1s;
+    overflow: hidden;
   }
-  .brick:hover { border-color: var(--accent); }
-  .brick .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-  .brick .name { font-weight: 600; }
-  .brick .desc { font-size: 12px; color: var(--sub); margin-top: 2px; }
-  .risk { font-size: 11px; border-radius: 4px; padding: 1px 6px; }
-  .risk.low { background: var(--low); color: var(--ok); }
-  .risk.mid { background: var(--mid); color: var(--warn); }
-  .risk.high { background: var(--high); color: var(--bad); }
-  #assembly { min-height: 200px; }
-  #assembly .empty {
-    color: var(--sub); text-align: center; padding: 40px 0; border: 2px dashed var(--line);
-    border-radius: 8px; font-size: 13px;
+  .brick:hover { border-color: var(--amber); box-shadow: var(--shadow); transform: translateY(-1px); }
+  .brick .head { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+  .brick .row1 { display: flex; align-items: center; gap: 8px; }
+  .brick .name { font-weight: 700; font-size: 14px; }
+  .brick .ver { font-size: 11px; color: var(--ink-faint); }
+  .brick .summary { font-size: 12px; color: var(--ink-soft); }
+  .brick .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .brick .add {
+    margin-left: auto; border: 1px solid var(--amber); background: transparent;
+    color: var(--amber); border-radius: 6px; padding: 3px 10px; font-size: 12px;
+    cursor: pointer; font-family: inherit; white-space: nowrap;
   }
+  .brick .add:hover { background: var(--amber); color: #fff; }
+  .brick .add.in { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .brick .detail {
+    display: none; border-top: 1px dashed var(--line);
+    padding: 8px 10px; font-size: 12px; color: var(--ink-soft);
+    background: var(--card); flex-direction: column; gap: 6px;
+  }
+  .brick.open .detail { display: flex; }
+  .brick .detail .d-label { font-weight: 700; color: var(--ink); font-size: 11px; letter-spacing: .5px; }
+  .brick .detail .d-desc { white-space: pre-wrap; }
+  .brick .detail .tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .brick .detail .tag {
+    background: var(--paper-deep); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 6px; font-size: 11px; color: var(--ink-soft);
+  }
+  .brick .detail .cap { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+  .brick .detail .dep { font-size: 11px; }
+  .brick .detail .dep b { color: var(--ink); }
+  .brick .detail .dep .missing { color: var(--bad); }
+
+  /* 风险标签 */
+  .risk { font-size: 11px; border-radius: 4px; padding: 1px 7px; font-weight: 600; cursor: help; }
+  .risk.low { background: #e4ece0; color: var(--ok); }
+  .risk.mid { background: #f3e6c8; color: var(--warn); }
+  .risk.high { background: #f0d8d2; color: var(--bad); }
+
+  /* 搜索命中高亮 */
+  mark { background: var(--amber-soft); color: var(--ink); border-radius: 2px; padding: 0 1px; }
+
+  /* ============ 组装区 ============ */
+  #assembly { min-height: 200px; display: flex; flex-direction: column; gap: 8px; }
+  .empty {
+    color: var(--ink-faint); text-align: center; padding: 40px 12px;
+    border: 2px dashed var(--line-strong); border-radius: 8px; font-size: 13px;
+  }
+  .empty .big { font-size: 26px; display: block; margin-bottom: 6px; }
   #assembly-list { display: flex; flex-direction: column; gap: 6px; }
   .chip {
-    display: flex; justify-content: space-between; align-items: center;
-    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg);
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-left: 4px solid var(--line-strong);
+    border-radius: 8px; padding: 8px 10px; background: var(--paper);
   }
+  .chip .c-name { font-weight: 600; }
+  .chip .c-deps { font-size: 11px; color: var(--ink-faint); }
   .chip .rm {
-    border: none; background: none; color: var(--sub); cursor: pointer; font-size: 15px;
+    margin-left: auto; border: none; background: none; color: var(--ink-faint);
+    cursor: pointer; font-size: 16px; line-height: 1;
   }
   .chip .rm:hover { color: var(--bad); }
-  .meta input, .meta textarea {
-    width: 100%; padding: 8px 10px; border: 1px solid var(--line);
-    border-radius: 8px; font-size: 13px; outline: none; font-family: inherit;
+  .chip .order-no {
+    width: 20px; height: 20px; border-radius: 50%; background: var(--amber);
+    color: #fff; font-size: 11px; display: inline-flex; align-items: center;
+    justify-content: center; flex-shrink: 0;
   }
-  .meta input:focus, .meta textarea:focus { border-color: var(--accent); }
-  .meta textarea { resize: vertical; min-height: 48px; }
-  #plan { font-size: 13px; }
+
+  /* ============ 方案与产出 ============ */
+  .meta { display: flex; flex-direction: column; gap: 8px; }
+  .meta label { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+  .meta input, .meta textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong);
+    border-radius: 8px; background: var(--paper); font-size: 13px;
+    color: var(--ink); outline: none; font-family: inherit;
+  }
+  .meta input:focus, .meta textarea:focus { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(180, 83, 9, .15); }
+  .meta textarea { resize: vertical; min-height: 52px; }
+  #plan { font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
   #plan .line { padding: 4px 0; }
-  #plan .order { color: var(--sub); }
+  #plan .order { color: var(--ink-soft); }
   #plan .order b { color: var(--ink); }
-  .res { display: flex; gap: 12px; flex-wrap: wrap; }
-  .res .item { background: var(--bg); border-radius: 6px; padding: 4px 10px; font-size: 12px; }
-  .res .item b { color: var(--accent); }
+  .res { display: flex; gap: 8px; flex-wrap: wrap; }
+  .res .item {
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; color: var(--ink-soft);
+  }
+  .res .item b { color: var(--amber); }
   #error { color: var(--bad); font-size: 13px; min-height: 18px; }
   #produce-btn {
-    background: var(--accent); color: var(--accent-ink); border: none;
-    border-radius: 8px; padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+    background: var(--vermilion); color: #fff; border: none;
+    border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 700;
+    cursor: pointer; letter-spacing: 1px; font-family: inherit;
+    box-shadow: 0 2px 6px rgba(166, 58, 42, .3);
   }
-  #produce-btn:disabled { opacity: .5; cursor: not-allowed; }
+  #produce-btn:hover:not(:disabled) { background: #8f2f22; }
+  #produce-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
   #result { font-size: 12px; color: var(--ok); word-break: break-all; }
-  footer { padding: 8px 24px 20px; color: var(--sub); font-size: 12px; }
+  #result .path { font-family: ui-monospace, Menlo, monospace; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; display: block; margin-top: 4px; }
+  .next-steps { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .next-steps a, .next-steps button {
+    border: 1px solid var(--line-strong); background: var(--paper);
+    color: var(--ink); border-radius: 6px; padding: 5px 12px;
+    font-size: 12px; cursor: pointer; text-decoration: none; font-family: inherit;
+  }
+  .next-steps a:hover, .next-steps button:hover { border-color: var(--amber); color: var(--amber); }
+
+  /* ============ 状态 ============ */
+  .skeleton { display: flex; flex-direction: column; gap: 8px; }
+  .skeleton .sk {
+    height: 52px; border-radius: 8px;
+    background: linear-gradient(90deg, var(--paper-deep) 25%, var(--card) 50%, var(--paper-deep) 75%);
+    background-size: 200% 100%; animation: shimmer 1.2s infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .state-msg { text-align: center; color: var(--ink-soft); padding: 30px 10px; font-size: 13px; }
+  .state-msg .big { font-size: 24px; display: block; margin-bottom: 6px; }
+  .state-msg button {
+    margin-top: 10px; border: 1px solid var(--amber); background: transparent;
+    color: var(--amber); border-radius: 6px; padding: 5px 14px; cursor: pointer; font-family: inherit;
+  }
+  .state-msg button:hover { background: var(--amber); color: #fff; }
+
+  footer { padding: 8px 24px 24px; color: var(--ink-faint); font-size: 12px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Brickery <span>· 造 agent 的工厂</span></h1>
-  <span class="tag">拖积木 → 校验 → 产出独立 agent</span>
+  <div class="brand">
+    <h1>Brickery <span class="accent">工坊</span></h1>
+    <span class="sub">造 agent 的工厂 · 积木来自 brick-vault</span>
+  </div>
+  <div class="steps">
+    <span class="step active" id="step1"><b>1</b>选积木</span>
+    <span class="step" id="step2"><b>2</b>组装</span>
+    <span class="step" id="step3"><b>3</b>产出</span>
+  </div>
 </header>
 
 <main>
   <!-- 左：积木库 -->
   <section class="panel">
-    <h2>积木库（brick-vault）</h2>
-    <input id="search" placeholder="搜索积木…">
+    <h2>积木库 <span class="count" id="brick-count">0</span></h2>
+    <div class="toolbar">
+      <input id="search" placeholder="搜索名称 / 解释 / 标签…">
+      <div class="filters" id="risk-filters">
+        <button data-r="all" class="on">全部</button>
+        <button data-r="low">低风险</button>
+        <button data-r="mid">中风险</button>
+        <button data-r="high">高风险</button>
+      </div>
+    </div>
     <div id="brick-list"></div>
   </section>
 
   <!-- 中：组装区 -->
   <section class="panel">
-    <h2>组装区（点击积木加入，点 × 移除）</h2>
+    <h2>组装区 <span class="count" id="sel-count">0</span></h2>
     <div id="assembly">
-      <div class="empty" id="empty-hint">从左侧点选积木，开始拼装你的 agent</div>
+      <div class="empty" id="empty-hint">
+        <span class="big">🧱</span>
+        从左侧点「加入」或点积木卡片，开始拼装你的 agent
+      </div>
       <div id="assembly-list"></div>
     </div>
   </section>
@@ -115,8 +293,10 @@
   <section class="panel">
     <h2>方案与产出</h2>
     <div class="meta">
-      <input id="agent-name" placeholder="agent 名称（如 my-assistant）">
-      <textarea id="agent-desc" placeholder="一句话描述这个 agent 是干什么的"></textarea>
+      <label for="agent-name">agent 名称</label>
+      <input id="agent-name" placeholder="如 my-assistant">
+      <label for="agent-desc">一句话描述</label>
+      <textarea id="agent-desc" placeholder="这个 agent 是干什么的"></textarea>
     </div>
     <div id="plan">
       <div class="line">安装顺序：<span class="order" id="plan-order">（未组装）</span></div>
@@ -128,51 +308,166 @@
   </section>
 </main>
 
-<footer>Brickery 本地工作台 · 积木来自 brick-vault · 产出物在 ~/.brickery/agents/</footer>
+<footer>Brickery 本地工坊 · 产出物在 ~/.brickery/agents/ · 风险说明：低=只读/本地，中=需联网或写文件，高=操作本机/浏览器</footer>
 
 <script>
 const $ = (id) => document.getElementById(id);
 let bricks = [];
 let selected = new Set();
+let riskFilter = 'all';
+let collapsedCats = new Set();
 
+const RISK_TEXT = { low: '低风险', mid: '中风险', high: '高风险' };
+const RISK_TIP = { low: '只读 / 本地操作', mid: '需联网或写文件', high: '操作本机 / 浏览器' };
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+/* 搜索命中高亮：对文本中匹配 q 的部分包 <mark> */
+function hl(text, q) {
+  const s = esc(text);
+  if (!q) return s;
+  const lower = s.toLowerCase();
+  const idx = lower.indexOf(q.toLowerCase());
+  if (idx < 0) return s;
+  return s.slice(0, idx) + '<mark>' + s.slice(idx, idx + q.length) + '</mark>' + s.slice(idx + q.length);
+}
+
+/* ============ 加载 ============ */
 async function loadBricks() {
-  const r = await fetch('/api/bricks');
-  const data = await r.json();
-  if (data.error) { $('brick-list').textContent = '加载失败：' + data.error; return; }
-  bricks = data.bricks;
+  $('brick-list').innerHTML = '<div class="skeleton">' + '<div class="sk"></div>'.repeat(6) + '</div>';
+  try {
+    const r = await fetch('/api/bricks');
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    bricks = data.bricks;
+    renderBrickList();
+  } catch (e) {
+    $('brick-list').innerHTML =
+      '<div class="state-msg"><span class="big">⚠️</span>积木库加载失败<br>' + esc(e.message) +
+      '<br><button onclick="loadBricks()">重试</button></div>';
+  }
+}
+
+/* ============ 渲染积木库（分类分组 + 搜索 + 风险筛选） ============ */
+function renderBrickList() {
+  const q = $('search').value.trim().toLowerCase();
+  const list = bricks.filter(b => {
+    if (riskFilter !== 'all' && b.risk_level !== riskFilter) return false;
+    if (!q) return true;
+    return (b.name || '').toLowerCase().includes(q)
+        || (b.summary || '').toLowerCase().includes(q)
+        || (b.description || '').toLowerCase().includes(q)
+        || (b.tags || []).some(t => t.toLowerCase().includes(q));
+  });
+
+  $('brick-count').textContent = list.length + ' / ' + bricks.length;
+
+  if (!bricks.length) {
+    $('brick-list').innerHTML = '<div class="state-msg"><span class="big">🧱</span>积木库为空</div>';
+    return;
+  }
+  if (!list.length) {
+    $('brick-list').innerHTML = '<div class="state-msg"><span class="big">🔍</span>没有匹配的积木<br>换个关键词或风险等级试试</div>';
+    return;
+  }
+
+  // 按 category 分组
+  const groups = {};
+  for (const b of list) {
+    const cat = b.category || '未分类';
+    (groups[cat] = groups[cat] || []).push(b);
+  }
+
+  $('brick-list').innerHTML = Object.entries(groups).map(([cat, items]) => {
+    const collapsed = collapsedCats.has(cat);
+    return `
+      <div class="cat-group">
+        <div class="cat-head ${collapsed ? 'collapsed' : ''}" onclick="toggleCat('${esc(cat)}')">
+          <span class="arrow">▼</span>${esc(cat)}
+          <span class="cat-count">${items.length}</span>
+        </div>
+        <div class="cat-body">
+          ${items.map(b => brickCard(b, q)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function brickCard(b, q) {
+  const inSel = selected.has(b.name);
+  const deps = (b.requires || []).map(d =>
+    selected.has(d) ? `<b>${esc(d)}</b>` : `<b class="missing">${esc(d)}</b>`).join('、') || '无';
+  const extDeps = (b.dependencies || []).map(d =>
+    `${esc(d.name)}${d.version && d.version !== '*' ? ' ' + esc(d.version) : ''}`).join('、');
+  return `
+    <div class="brick ${inSel ? 'open' : ''}" onclick="toggleDetail('${esc(b.name)}')">
+      <div class="head">
+        <div class="row1">
+          <span class="name">${hl(b.name, q)}</span>
+          <span class="ver">v${esc(b.version)}</span>
+          <span class="risk ${esc(b.risk_level)}" title="${RISK_TIP[b.risk_level] || ''}">${RISK_TEXT[b.risk_level] || esc(b.risk_level)}</span>
+          <button class="add ${inSel ? 'in' : ''}" onclick="event.stopPropagation(); toggle('${esc(b.name)}')">${inSel ? '已加入 ✓' : '加入'}</button>
+        </div>
+        <div class="summary">${hl(b.summary || b.description || '（无解释）', q)}</div>
+        <div class="badges">
+          ${(b.tags || []).slice(0, 4).map(t => `<span class="tag">${hl(t, q)}</span>`).join('')}
+        </div>
+      </div>
+      <div class="detail">
+        <div><span class="d-label">说明</span><div class="d-desc">${esc(b.description || '（无）')}</div></div>
+        ${(b.tags || []).length ? `<div><span class="d-label">标签</span><div class="tags">${(b.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div></div>` : ''}
+        ${(b.capabilities || []).length ? `<div><span class="d-label">能力</span><div class="tags">${(b.capabilities || []).map(c => `<span class="cap tag">${esc(c)}</span>`).join('')}</div></div>` : ''}
+        <div><span class="d-label">积木依赖</span><div class="dep">${deps}</div></div>
+        ${extDeps ? `<div><span class="d-label">外部依赖</span><div class="dep">${esc(extDeps)}</div></div>` : ''}
+        ${(b.conflicts || []).length ? `<div><span class="d-label">冲突</span><div class="dep">${esc(b.conflicts.join('、'))}</div></div>` : ''}
+        <div><span class="d-label">资源</span><div class="dep">内存 ${esc(b.resources.memory_mb || 0)}MB · 磁盘 ${esc(b.resources.disk_mb || 0)}MB${b.resources.network ? ' · 需联网' : ''}</div></div>
+      </div>
+    </div>`;
+}
+
+function toggleCat(cat) {
+  if (collapsedCats.has(cat)) collapsedCats.delete(cat); else collapsedCats.add(cat);
   renderBrickList();
 }
 
-function renderBrickList() {
-  const q = $('search').value.trim().toLowerCase();
-  const list = bricks.filter(b => !q || b.name.includes(q) || (b.description || '').toLowerCase().includes(q));
-  $('brick-list').innerHTML = list.map(b => `
-    <div class="brick" onclick="toggle('${b.name}')">
-      <div class="row">
-        <span class="name">${b.name}</span>
-        <span class="risk ${b.risk_level}">${riskText(b.risk_level)}</span>
-      </div>
-      <div class="desc">${b.description || b.name}</div>
-    </div>`).join('');
+function toggleDetail(name) {
+  const el = document.querySelector(`.brick .name`);
+  // 通过 data 标记切换展开态：用 class 控制
+  const card = event.currentTarget;
+  card.classList.toggle('open');
 }
 
-function riskText(r) { return {low:'低风险', mid:'中风险', high:'高风险'}[r] || r; }
-
+/* ============ 组装区 ============ */
 function toggle(name) {
   if (selected.has(name)) selected.delete(name); else selected.add(name);
   renderAssembly();
+  renderBrickList();
   checkPlan();
 }
 
 function renderAssembly() {
   $('empty-hint').style.display = selected.size ? 'none' : 'block';
-  $('assembly-list').innerHTML = [...selected].map(name => {
+  $('sel-count').textContent = selected.size;
+  const arr = [...selected];
+  $('assembly-list').innerHTML = arr.map((name, i) => {
     const b = bricks.find(x => x.name === name);
-    return `<div class="chip"><span>${name} <span class="risk ${b.risk_level}">${riskText(b.risk_level)}</span></span>
-      <button class="rm" onclick="toggle('${name}')">×</button></div>`;
+    if (!b) return '';
+    const deps = (b.requires || []).filter(d => selected.has(d));
+    return `<div class="chip">
+      <span class="order-no">${i + 1}</span>
+      <span class="c-name">${esc(name)}</span>
+      <span class="risk ${esc(b.risk_level)}" title="${RISK_TIP[b.risk_level] || ''}">${RISK_TEXT[b.risk_level] || esc(b.risk_level)}</span>
+      ${deps.length ? `<span class="c-deps">依赖 ${deps.map(esc).join('、')}</span>` : ''}
+      <button class="rm" onclick="toggle('${esc(name)}')" title="移除">×</button>
+    </div>`;
   }).join('');
 }
 
+/* ============ 方案校验 ============ */
 async function checkPlan() {
   $('error').textContent = '';
   $('result').textContent = '';
@@ -180,58 +475,100 @@ async function checkPlan() {
     $('plan-order').textContent = '（未组装）';
     $('plan-res').innerHTML = '';
     $('produce-btn').disabled = true;
+    $('step2').classList.remove('active');
+    $('step3').classList.remove('active');
     return;
   }
-  const r = await fetch('/api/assemble', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({selected: [...selected]})
-  });
-  const data = await r.json();
-  if (!data.ok) {
-    $('error').textContent = '校验失败：' + data.error;
-    $('plan-order').textContent = '（校验失败）';
-    $('plan-res').innerHTML = '';
+  $('step2').classList.add('active');
+  try {
+    const r = await fetch('/api/assemble', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selected: [...selected] })
+    });
+    const data = await r.json();
+    if (!data.ok) {
+      $('error').textContent = '校验失败：' + data.error;
+      $('plan-order').textContent = '（校验失败）';
+      $('plan-res').innerHTML = '';
+      $('produce-btn').disabled = true;
+      return;
+    }
+    const p = data.plan;
+    $('plan-order').innerHTML = p.order.map(n => `<b>${esc(n)}</b>`).join(' → ');
+    const res = p.resources_total;
+    $('plan-res').innerHTML = `
+      <span class="item">内存 <b>${res.memory_mb}MB</b></span>
+      <span class="item">磁盘 <b>${res.disk_mb}MB</b></span>
+      <span class="item">端口 <b>${res.ports.join(',') || '无'}</b></span>`;
+    $('produce-btn').disabled = false;
+  } catch (e) {
+    $('error').textContent = '校验请求失败：' + e.message;
     $('produce-btn').disabled = true;
-    return;
   }
-  const p = data.plan;
-  $('plan-order').innerHTML = p.order.map(n => `<b>${n}</b>`).join(' → ');
-  const res = p.resources_total;
-  $('plan-res').innerHTML = `
-    <span class="item">内存 <b>${res.memory_mb}MB</b></span>
-    <span class="item">磁盘 <b>${res.disk_mb}MB</b></span>
-    <span class="item">端口 <b>${res.ports.join(',') || '无'}</b></span>`;
-  $('produce-btn').disabled = false;
 }
 
+/* ============ 产出 ============ */
 async function produce() {
   const name = $('agent-name').value.trim();
-  if (!name) { $('error').textContent = '请先填写 agent 名称'; return; }
+  if (!name) { $('error').textContent = '请先填写 agent 名称'; $('agent-name').focus(); return; }
   $('produce-btn').disabled = true;
   $('result').textContent = '正在产出…';
-  const r = await fetch('/api/produce', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      selected: [...selected],
-      name,
-      description: $('agent-desc').value.trim()
-    })
-  });
-  const data = await r.json();
-  if (!data.ok) {
-    $('error').textContent = '产出失败：' + data.error;
+  try {
+    const r = await fetch('/api/produce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selected: [...selected],
+        name,
+        description: $('agent-desc').value.trim()
+      })
+    });
+    const data = await r.json();
+    if (!data.ok) {
+      $('error').textContent = '产出失败：' + data.error;
+      $('result').textContent = '';
+      $('produce-btn').disabled = false;
+      return;
+    }
+    $('step3').classList.add('active');
+    $('result').innerHTML =
+      '已产出 agent「' + esc(data.name) + '」' +
+      '<span class="path">' + esc(data.path) + '</span>' +
+      '<div class="next-steps">' +
+      '<a href="file://' + esc(data.path) + '" target="_blank">打开目录</a>' +
+      '<button onclick="resetAll()">再做一个</button>' +
+      '</div>';
+    $('produce-btn').disabled = false;
+  } catch (e) {
+    $('error').textContent = '产出请求失败：' + e.message;
     $('result').textContent = '';
     $('produce-btn').disabled = false;
-    return;
   }
-  $('result').textContent = '已产出：' + data.path;
-  $('produce-btn').disabled = false;
 }
 
+function resetAll() {
+  selected.clear();
+  $('agent-name').value = '';
+  $('agent-desc').value = '';
+  $('result').textContent = '';
+  $('error').textContent = '';
+  renderAssembly();
+  renderBrickList();
+  checkPlan();
+}
+
+/* ============ 事件绑定 ============ */
 $('search').addEventListener('input', renderBrickList);
 $('produce-btn').addEventListener('click', produce);
+document.querySelectorAll('#risk-filters button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#risk-filters button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    riskFilter = btn.dataset.r;
+    renderBrickList();
+  });
+});
 loadBricks();
 </script>
 </body>

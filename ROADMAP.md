@@ -56,6 +56,7 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - **B6 产出链路完成**：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令；e2e 全链路通过（commit `b21e314`）
 - **净化 shadeling 残留完成**：brick_runtime 宿主回退删除；SHADELING_HOME/~/.shadeling → BRICKERY_HOME/~/.brickery（50 处）；运行时标识（logger/环境变量/keychain/产出目录/测试前缀/打印前缀）→ brickery（43 处）；schema 契约统一 brickery-memory-export/v1；保留品牌身份（产出 agent 自称 Shadeling）/数据契约（shadeling-skill-repo/v1）/迁移兼容（~/shadeling-runtime、Shadeling_* 备份）/来源注释；方案落盘 `specs/cleanup-shadeling.md`
 - **GitHub 仓库整合完成（5→3）**：技能市场源并入 `brick-vault/skills/`（commit `b4b2066` 已 push）；ipc.py 技能源 URL 改指向 shadeling-bricks；删除 GitHub `shadeling-skills` + `shadling`（204）；本地 shadeling-skills clone 已删；editor_sdk（193MB）git filter-repo 重写历史移除 + 上传 shadeling-bricks Release v1.0.0，brickery force push 成功（`b8188c0..f49e847`）；全量单测 263 passed + 1 skipped；方案与执行记录落盘 `specs/cleanup-shadeling.md`
+- **Web 工作台优化完成**：`assembler.py` Brick 类新增展示字段（summary/description/category/tags/capabilities/dependencies），`server.py` `_api_bricks` 透传；`web/index.html` 重写为「工坊蓝图风」（暖纸底+墨字+琥珀/朱红，分类分组/搜索高亮/风险筛选/积木详情展开/骨架屏/空状态/错误重试/步骤引导）；单测回归 runtime 195 passed + memory 69 passed + 1 skipped 全绿；服务重启实测 28 积木展示字段透传正常；方案落盘 `specs/web-workbench.md`
 
 ## 与原本计划的差异
 
@@ -89,7 +90,9 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 
 ## 下一步
 
-**B6 产出链路**：produce.py 打包运行时进 .app，run.sh 改入口，产出独立可分发安装包。
+**P4（.dmg 打包）**：brickery 产出可分发安装包。
+
+之后 P5（Shadeling 接入）→ P6（积木市场）。
 
 ## 关键路径
 

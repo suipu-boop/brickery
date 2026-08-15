@@ -86,6 +86,13 @@ class BrickeryHandler(BaseHTTPRequestHandler):
                 "requires": b.requires,
                 "conflicts": b.conflicts,
                 "resources": b.resources,
+                # 展示字段（来自 brick.json，供前端解释积木）
+                "summary": b.summary,
+                "description": b.description,
+                "category": b.category,
+                "tags": b.tags,
+                "capabilities": b.capabilities,
+                "dependencies": b.dependencies,
             })
         self._json({"bricks": bricks})
 

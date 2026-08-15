@@ -22,7 +22,12 @@ class AssemblyError(ValueError):
 
 @dataclass
 class Brick:
-    """积木的静态视图：只取组装关心的字段。"""
+    """积木的静态视图：组装字段 + 展示字段（供 Web 工作台等前端使用）。
+
+    组装字段：name / version / risk_level / requires / conflicts / resources。
+    展示字段：summary / description / category / tags / capabilities / dependencies，
+    仅透传 brick.json 原始信息，不参与组装逻辑（纯增量）。
+    """
 
     name: str
     version: str
@@ -30,6 +35,13 @@ class Brick:
     requires: List[str] = field(default_factory=list)
     conflicts: List[str] = field(default_factory=list)
     resources: dict = field(default_factory=dict)
+    # ---- 展示字段（不参与组装） ----
+    summary: str = ""
+    description: str = ""
+    category: str = ""
+    tags: List[str] = field(default_factory=list)
+    capabilities: List[str] = field(default_factory=list)
+    dependencies: List[dict] = field(default_factory=list)
 
     @classmethod
     def from_manifest(cls, raw: dict) -> "Brick":
@@ -41,6 +53,12 @@ class Brick:
             requires=[str(r) for r in (comp.get("requires") or [])],
             conflicts=[str(c) for c in (comp.get("conflicts_with") or [])],
             resources=dict(raw.get("resources") or {}),
+            summary=str(raw.get("summary") or "").strip(),
+            description=str(raw.get("description") or "").strip(),
+            category=str(raw.get("category") or "").strip(),
+            tags=[str(t) for t in (raw.get("tags") or [])],
+            capabilities=[str(c) for c in (raw.get("capabilities") or [])],
+            dependencies=list(raw.get("dependencies") or []),
         )
 
 
