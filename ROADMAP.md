@@ -101,12 +101,17 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - [x] B5 服务层：ipc / daemon / sessions / scheduler / gateway / confirm / interoception/ + loop → brickery/runtime/（195 单测通过；test_surfacing 迁回，memory 69 单测通过）
 - [x] B6 产出链路：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令（e2e 全链路通过）
 
+## 待拍板事项（2026-08-16 记录）
+
+1. **memory-* 积木去留**：记忆系统 8 能力已写死进内核，对应 memory-* 积木是彻底移除还是保留为开关（默认开可关）——未拍板
+2. **P4 .dmg 打包时机**：重出包到 /Applications，重打 DMG 到桌面验证——用户：不急着打包，暂缓
+3. **P5 Shadeling 接入**：作为第一个成品——待启动
+4. **P6 积木市场**：BrickMarket 已就绪，接 web 工作台热插拔——待启动
+5. **白皮书定位**：保持内部规划文档（不硬塞商业化蓝本）；商业化蓝本另开 `docs/whitepaper.md` 一事——用户：不着急，不分心，暂缓
+
 ## 下一步
 
-- **遗留拍板**：记忆系统 8 能力写死进内核后，对应 memory-* 积木彻底移除还是保留为开关（默认开可关）
-- **P4 .dmg 打包**：重出包到 /Applications，重打 DMG 到桌面验证（用户：不急着打包）
-- **P5 Shadeling 接入**为第一个成品
-- **P6 积木市场**：brick-market 热插拔（BrickMarket 已就绪，接 web 工作台）
+- 从「待拍板事项」逐项拍板后推进（下次会话先读本文件对齐）
 
 ## 关键路径
 
