@@ -321,9 +321,13 @@ def _status_page(name: str, version: str, port: int) -> str:
 def _bundle_runtime(resources: Path) -> None:
     """把 brickery 包（B1–B5 全部）复制进 Resources/brickery-runtime/。
 
+    底座来源优先级（用户拍板）：GitHub 拉下的 `~/.brickery/base/brickery` 优先
+    （最终用户本地无底座），本地仓库仅作开发兜底。
     排除 __pycache__ / tests / fixtures / web（运行时不需要）。
     """
-    src = Path(__file__).resolve().parent  # brickery/ 包目录
+    base_src = Path.home() / ".brickery" / "base" / "brickery"
+    local_src = Path(__file__).resolve().parent  # brickery/ 包目录
+    src = base_src if base_src.is_dir() else local_src
     dst = resources / "brickery-runtime" / "brickery"
     if dst.exists():
         shutil.rmtree(dst)

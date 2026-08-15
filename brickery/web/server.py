@@ -23,7 +23,8 @@ from urllib.parse import urlparse
 from ..assembler import AssemblyError, load_vault
 from ..produce import DEFAULT_AGENTS_ROOT, ProduceError, ProduceMeta, produce
 
-DEFAULT_VAULT = str(Path.home() / "Dev" / "brick-vault")
+# 积木库默认来自 GitHub 拉下的缓存（~/.brickery/vault），保留 --vault 覆盖
+DEFAULT_VAULT = str(Path.home() / ".brickery" / "vault")
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
@@ -49,6 +50,8 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             self._serve_frontend("index.html")
         elif path == "/api/bricks":
             self._api_bricks()
+        elif path == "/api/sync-status":
+            self._api_sync_status()
         else:
             self._json({"error": "not found"}, status=404)
 
@@ -65,6 +68,8 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             self._api_produce(body)
         elif path == "/api/dmg":
             self._api_dmg(body)
+        elif path == "/api/sync":
+            self._api_sync(body)
         else:
             self._json({"error": "not found"}, status=404)
 
@@ -82,6 +87,22 @@ class BrickeryHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     # ---- API ----
+    def _api_sync(self, body: dict) -> None:
+        """从 GitHub 拉取/更新底座与积木（首次 clone，之后 pull）。"""
+        from ..web.sync import SyncError, sync_all, status
+        try:
+            result = sync_all()
+        except SyncError as e:
+            self._json({"ok": False, "error": str(e)})
+            return
+        result["status"] = status()
+        self._json(result)
+
+    def _api_sync_status(self) -> None:
+        """只读源状态（不触发网络）。"""
+        from ..web.sync import status
+        self._json(status())
+
     def _api_bricks(self) -> None:
         try:
             asm = load_vault(self.vault_root)
