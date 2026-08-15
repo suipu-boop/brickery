@@ -35,7 +35,7 @@ class Skill:
                                 # 空 = 纯提示技能（现状不变）。
     # —— 二进制扩展（市场高配技能，见 MARKETPLACE_BINARY_EXT.md）——
     # 技能可声明需下载的引擎二进制（如 editor_sdk），安装时落盘到
-    # SHADELING_HOME/bin/<source>/，运行时按需启动。纯提示技能这些为空。
+    # BRICKERY_HOME/bin/<source>/，运行时按需启动。纯提示技能这些为空。
     binary_url: str = ""        # 二进制下载地址（http/https/file）
     binary_size: int = 0        # 字节；0=未声明
     binary_sha256: str = ""     # 可选校验和（策展源应提供）
@@ -93,7 +93,7 @@ class SkillRegistry:
         return sk
 
     def save(self, path: Path) -> None:
-        """技能清单落盘 SHADELING_HOME/skills.json（用户可管理）。
+        """技能清单落盘 BRICKERY_HOME/skills.json（用户可管理）。
 
         红线：source=="builtin" 的内置技能绝不写入用户文件——它们随包分发、
         每次启动从包内只读载入，避免升级 app 后内置技能被旧用户文件覆盖，也避免污染用户清单。

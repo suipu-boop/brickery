@@ -13,7 +13,7 @@ from brickery.runtime.tools import RiskLevel
 
 class TestP0Handlers(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="shadeling_p0_"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="brickery_p0_"))
         # macOS 临时目录在 /var/folders 下会被出厂系统区前缀拦截，
         # 这里用 deny_prefixes=[] 仅验证 handler + 白名单逻辑（系统区另测）。
         self.sb = Sandbox(write_roots=[str(self.tmp)],

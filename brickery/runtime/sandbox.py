@@ -18,7 +18,7 @@ from typing import List, Tuple
 # 写权限开放目录（均在本用户家目录内）
 DEFAULT_WRITE_ROOTS: List[str] = [
     "~/Desktop", "~/Documents", "~/Downloads", "~/Dev",
-    "~/.shadeling", "~/shadeling-runtime",
+    "~/.brickery", "~/shadeling-runtime",
 ]
 # 读权限：整个用户家目录内可读（默认 ~/）
 DEFAULT_READ_ROOTS: List[str] = ["~"]

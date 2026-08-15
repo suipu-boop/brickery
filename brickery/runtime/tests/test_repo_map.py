@@ -36,7 +36,7 @@ const bar = () => 2;
 
 class TestRepoMap(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="shadeling_rmap_"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="brickery_rmap_"))
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)

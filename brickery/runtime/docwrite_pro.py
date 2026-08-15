@@ -20,11 +20,11 @@ from .config import load_config
 
 
 def _resolve_output_dir() -> Path:
-    """默认产出目录：取 config.output_dir（失败回退 ~/Documents/Shadeling/Output）。"""
+    """默认产出目录：取 config.output_dir（失败回退 ~/Documents/Brickery/Output）。"""
     try:
         return load_config().output_dir
     except Exception:
-        return Path.home() / "Documents" / "Shadeling" / "Output"
+        return Path.home() / "Documents" / "Brickery" / "Output"
 
 from .edsdk_pro import (ensure_engine, generate_docx, generate_pptx,
                         generate_xlsx, build_document)
@@ -104,7 +104,7 @@ def build_docwrite_pro_tool(home=None, skill=None,
             "properties": {
                 "format": {"type": "string", "enum": ["docx", "xlsx", "pptx"],
                            "description": "文档格式"},
-                "path": {"type": "string", "description": "输出文件路径（可选；留空则默认写入产出目录 ~/Documents/Shadeling/Output，文件名自动加时间戳）"},
+                "path": {"type": "string", "description": "输出文件路径（可选；留空则默认写入产出目录 ~/Documents/Brickery/Output，文件名自动加时间戳）"},
                 "title": {"type": "string", "description": "文档标题"},
                 "sections": {"type": "array",
                              "description": "docx 内容段落数组",

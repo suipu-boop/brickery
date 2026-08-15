@@ -24,7 +24,7 @@ _MAX_SYMBOLS = 400
 
 # 遍历时需跳过的目录
 _SKIP_DIRS = {".git", "node_modules", "__pycache__", ".build", "build",
-              "dist", "target", "venv", ".venv", "Pods", ".shadeling",
+              "dist", "target", "venv", ".venv", "Pods", ".brickery",
               ".idea", ".vscode"}
 
 # 纳入索引的代码扩展名

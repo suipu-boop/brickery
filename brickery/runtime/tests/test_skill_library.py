@@ -17,7 +17,7 @@ REPO_URL = "file://" + str(REPO_DIR)
 
 class TestFixtureRepo(TestCase):
     def setUp(self):
-        self.home = Path(tempfile.mkdtemp(prefix="shadeling_mkt_"))
+        self.home = Path(tempfile.mkdtemp(prefix="brickery_mkt_"))
 
     def _lib(self, url=REPO_URL):
         return SkillLibrary(url, self.home)

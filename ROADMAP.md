@@ -53,6 +53,8 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - **B4 记忆层迁移完成**：memory/ 包（17 文件）迁入 `brickery/memory/`，memory_providers 迁入 `brickery/runtime/`，db/cabinet 的 config.paths 改 brickery.runtime.paths，测试基类改 BRICKERY_HOME，54 单测通过
 - **B5 服务层迁移完成**：ipc / daemon / sessions / scheduler / gateway / confirm / loop 迁入 `brickery/runtime/`，interoception/ 包（7 文件）迁入 `brickery/runtime/interoception/`；test_scheduler 修复遗留失效 import（顶层 scheduler 包已不存在，改 brickery.runtime.scheduler）；test_confirm_pressure 子进程启动改 `python -m brickery.runtime.ipc` + BRICKERY_HOME；B4 暂存的 test_surfacing 迁回，195 单测通过
 - 全量单测通过：runtime 195 + memory 69（`python -m unittest discover -s brickery/runtime/tests -t brickery -p "test_*.py"`）
+- **B6 产出链路完成**：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令；e2e 全链路通过（commit `b21e314`）
+- **净化 shadeling 残留完成**：brick_runtime 宿主回退删除；SHADELING_HOME/~/.shadeling → BRICKERY_HOME/~/.brickery（50 处）；运行时标识（logger/环境变量/keychain/产出目录/测试前缀/打印前缀）→ brickery（43 处）；schema 契约统一 brickery-memory-export/v1；保留品牌身份（产出 agent 自称 Shadeling）/数据契约（shadeling-skill-repo/v1）/迁移兼容（~/shadeling-runtime、Shadeling_* 备份）/来源注释；方案落盘 `specs/cleanup-shadeling.md`
 
 ## 与原本计划的差异
 

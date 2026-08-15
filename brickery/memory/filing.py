@@ -3,7 +3,7 @@
 对本地文件柜建全文索引，支撑文件级精准召回，与对话记忆打通。
 - 使用 FTS5 外部内容表 + 触发器：INSERT/UPDATE/DELETE 自动同步索引（§8 验收）。
 - 索引与内容分离：重建索引不破坏内容表。
-- 文件内容只在本机 SHADELING_HOME 体系内，不向外发（§8 红线）。
+- 文件内容只在本机 BRICKERY_HOME 体系内，不向外发（§8 红线）。
 """
 from __future__ import annotations
 

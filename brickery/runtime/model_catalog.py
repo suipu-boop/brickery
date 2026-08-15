@@ -6,7 +6,7 @@
 - 枚举已安装的 GGUF（~/shadeling-runtime/models/gguf/*.gguf）。
 - 后台下载管理器：把 GGUF 拉到模型目录，分块 + 进度回调 + 超时，默认走 **hf-mirror.com**
   （中国可直连的 HF 镜像；原生 huggingface.co 在中国大陆不可达，需代理）。镜像地址可由
-  环境变量 SHADELING_HF_MIRROR 覆盖。
+  环境变量 BRICKERY_HF_MIRROR 覆盖。
 
 红线：
 - 绝不硬编码任何**推理**外部地址；这里只涉及「模型权重文件下载」，与推理后端无关。
@@ -277,7 +277,7 @@ _lock = threading.Lock()
 
 
 def _mirror_base() -> str:
-    return os.environ.get("SHADELING_HF_MIRROR", "https://hf-mirror.com").rstrip("/")
+    return os.environ.get("BRICKERY_HF_MIRROR", "https://hf-mirror.com").rstrip("/")
 
 
 def _source_base(entry: Dict) -> str:
@@ -342,7 +342,7 @@ def start_download(model_id: str, models_root: Path, resume: bool = False) -> Di
         resume_at = st.bytes_done if do_resume else 0
         try:
             url = _build_url(entry)
-            headers = {"User-Agent": "Shadeling"}
+            headers = {"User-Agent": "Brickery"}
             if resume_at > 0:
                 headers["Range"] = f"bytes={resume_at}-"
             req = urllib.request.Request(url, headers=headers)

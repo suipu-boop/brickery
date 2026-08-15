@@ -184,7 +184,7 @@ class MemorySystem:
         """
         from datetime import datetime, timezone
         bundle: dict = {
-            "schema": "shadeling-memory-export/v1",
+            "schema": "brickery-memory-export/v1",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             # 能力探测降级：可选积木未装时对应资产置空/缺省，导出仍可用
             "portrait": self.get_portrait() if self.has_kind("portrait") else [],

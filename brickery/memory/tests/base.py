@@ -7,7 +7,7 @@ import unittest
 
 class BaseMemoryTest(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="shadeling_test_")
+        self.tmp = tempfile.mkdtemp(prefix="brickery_test_")
         os.environ["BRICKERY_HOME"] = self.tmp
 
     def tearDown(self):

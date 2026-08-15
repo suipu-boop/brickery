@@ -16,7 +16,7 @@ class TestExport(BaseMemoryTest):
         ms.add_node("d1", "resource", "医专", content="学校")
 
         bundle = ms.export_all(include_core=False)
-        self.assertEqual(bundle["schema"], "shadeling-memory-export/v1")
+        self.assertEqual(bundle["schema"], "brickery-memory-export/v1")
         self.assertIn("portrait", bundle)
         self.assertIn("drawers", bundle)
         self.assertIn("conversations", bundle)
@@ -43,11 +43,11 @@ class TestExport(BaseMemoryTest):
         ms.update_portrait("a", "b")
         bundle = ms.export_all()
         md = to_markdown(bundle)
-        self.assertIn("# Shadeling 记忆导出", md)
+        self.assertIn("# Brickery 记忆导出", md)
         self.assertIn("用户画像", md)
         js = to_json(bundle)
         parsed = json.loads(js)
-        self.assertEqual(parsed["schema"], "shadeling-memory-export/v1")
+        self.assertEqual(parsed["schema"], "brickery-memory-export/v1")
 
 
 if __name__ == "__main__":

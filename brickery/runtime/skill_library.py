@@ -48,7 +48,7 @@ def _http_get(url: str, timeout: int = DEFAULT_TIMEOUT) -> Tuple[Optional[bytes]
             # file:// 直接读本地，绕过网络栈，便于离线 fixture 测试
             raw = Path(urlparse(url).path).read_bytes()
             return raw, None
-        req = urllib.request.Request(url, headers={"User-Agent": "Shadeling-SkillLib/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Brickery-SkillLib/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read(), None
     except urllib.error.URLError as e:
@@ -364,7 +364,7 @@ class SkillLibrary:
         # 都依赖 source 定位 home/bin/<source>/，顺序错会导致引擎找不到）
         skill.source = skill_id
         skill.installed_at = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
-        # 高配技能：下载引擎二进制到 SHADELING_HOME/bin/<source>/
+        # 高配技能：下载引擎二进制到 BRICKERY_HOME/bin/<source>/
         if skill.binary_url:
             ok, berr = self._download_binary(skill)
             if not ok:

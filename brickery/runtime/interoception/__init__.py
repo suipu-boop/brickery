@@ -1,7 +1,7 @@
 """§4.5 自我状态感知（内感受子系统）— 包入口（clean room，纯自研）。
 
 让 Shadeling 在回合后同步采集自身运行状态，融合为「感觉状态向量」，
-持久化到 ~/.shadeling/interoception/，供浮现层（阶段 II）与 UI（阶段 III）消费。
+持久化到 ~/.brickery/interoception/，供浮现层（阶段 II）与 UI（阶段 III）消费。
 """
 from __future__ import annotations
 

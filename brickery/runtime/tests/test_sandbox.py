@@ -13,7 +13,7 @@ class TestSandboxAllowlist(unittest.TestCase):
     """路径白名单裁决（隔离系统区拒绝，用独立临时目录作唯一根）。"""
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="shadeling_sbx_"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="brickery_sbx_"))
         # 注：macOS 临时目录在 /var/folders 下，会被出厂系统区前缀拦截，
         # 因此本类用 deny_prefixes=[] 仅验证「白名单」逻辑（系统区另测）。
         self.sb = Sandbox(write_roots=[str(self.tmp)],
@@ -59,8 +59,8 @@ class TestSandboxSystemDeny(unittest.TestCase):
         self.assertIn("系统区", reason)
 
     def test_write_allowed_in_home_default_root(self):
-        # 出厂白名单含 ~/.shadeling，应放行
-        ok, _ = self.sb.check_path_write(str(Path.home() / ".shadeling" / "x"))
+        # 出厂白名单含 ~/.brickery，应放行
+        ok, _ = self.sb.check_path_write(str(Path.home() / ".brickery" / "x"))
         self.assertTrue(ok)
 
 

@@ -320,7 +320,7 @@ class ToolRegistry:
         return t
 
     def save(self, path: Path) -> None:
-        """工具定义落盘 SHADELING_HOME/tools.json（用户可增删），不进记忆库。
+        """工具定义落盘 BRICKERY_HOME/tools.json（用户可增删），不进记忆库。
 
         注意：handler 是运行期可调用对象，**不落盘**（落盘等于执行任意代码入口）。
         """

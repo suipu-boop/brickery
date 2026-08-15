@@ -24,7 +24,7 @@ def _fmt_conf(conf: Any) -> str:
 
 def to_markdown(bundle: Dict[str, Any]) -> str:
     lines: List[str] = []
-    lines.append("# Shadeling 记忆导出")
+    lines.append("# Brickery 记忆导出")
     lines.append("")
     lines.append(f"- 生成时间（UTC）：{bundle.get('generated_at', '未知')}")
     lines.append(f"- 格式版本：{bundle.get('schema', '未知')}")

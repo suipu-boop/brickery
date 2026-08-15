@@ -4,7 +4,7 @@
 
 - SQLite 存 assets 表，按 type 判别四子结构（document/image/webpage/skill_snapshot）
   + 自由文本 note；共用列 + payload(JSON) 扩展。
-- 实际文件存 ~/.shadeling/vault/<id>/...（本地优先，不联网不进 iCloud；路径与 ipc 同源，经 SHADELING_HOME 推导）。
+- 实际文件存 ~/.brickery/vault/<id>/...（本地优先，不联网不进 iCloud；路径与 ipc 同源，经 BRICKERY_HOME 推导）。
 - 证件敏感字段（number_full）用 openssl AES-256-CBC 加密，密钥存 macOS 钥匙串
   （fallback 本地 keyfile）。列表/卡片只回脱敏；详情解锁才回明文。
 - 网页抓取用 urllib + 轻量去标签抽取 excerpt，只存摘要+来源+url，不存整页。
@@ -27,20 +27,20 @@ from typing import Any, Dict, List, Optional
 # 路径与常量
 # --------------------------------------------------------------------------
 def _resolve_vault_dir() -> Path:
-    """与 ipc._vault() 同源：优先 SHADELING_HOME 环境变量，回退 ~/.shadeling。
+    """与 ipc._vault() 同源：优先 BRICKERY_HOME 环境变量，回退 ~/.brickery。
 
     注：早期版本硬编码 ~/shadeling-runtime/vault，导致 UI(ipc) 与 agent(builtin_tools)
     写入两个独立库、互不可见（agent 永远查不到用户在界面存的资产）。此处统一为
-    SHADELING_HOME/vault，与 supervisor/ipc 推导口径一致。
+    BRICKERY_HOME/vault，与 supervisor/ipc 推导口径一致。
     """
-    home = os.environ.get("SHADELING_HOME")
-    base = Path(home) if home else (Path.home() / ".shadeling")
+    home = os.environ.get("BRICKERY_HOME")
+    base = Path(home) if home else (Path.home() / ".brickery")
     return base / "vault"
 
 
 VAULT_DIR = _resolve_vault_dir()
 DB_PATH = VAULT_DIR / "vault.db"
-KEYCHAIN_SERVICE = "shadeling-vault"
+KEYCHAIN_SERVICE = "brickery-vault"
 KEYCHAIN_ACCOUNT = "vault-key"
 
 DOC_TYPES = ["身份证", "驾照", "护照", "资格证", "其他证件"]
@@ -138,7 +138,7 @@ def fetch_webpage(url: str, timeout: float = 12.0) -> Dict[str, str]:
     import urllib.parse
     import urllib.request
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 ShadelingVault"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 BrickeryVault"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read()
             charset = resp.headers.get_content_charset() or "utf-8"
@@ -173,7 +173,7 @@ def _strip_tags(s: str) -> str:
 class VaultStore:
     def __init__(self, root: Optional[str] = None):
         self.root = Path(root) if root else VAULT_DIR
-        # 迁移：早期版本 vault 落在 ~/shadeling-runtime/vault，统一到 SHADELING_HOME/vault。
+        # 迁移：早期版本 vault 落在 ~/shadeling-runtime/vault，统一到 BRICKERY_HOME/vault。
         # 仅当目标不存在、旧路径存在时移动，避免覆盖既有正确数据。
         legacy = Path(os.path.expanduser("~/shadeling-runtime/vault"))
         if legacy.exists() and not self.root.exists():

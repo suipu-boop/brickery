@@ -25,7 +25,7 @@ from typing import Any, Callable, Dict, List, Optional
 from .config import EngineConfig
 from .engine_router import EngineResult, ToolCall, PromptUsage
 
-logger = logging.getLogger("shadeling.engine_providers")
+logger = logging.getLogger("brickery.engine_providers")
 def _parse_tool_calls_from_content(content: Optional[str]) -> List[ToolCall]:
     """解析 Qwen3 等模型在 content 中以原生标签产出的工具调用。
 

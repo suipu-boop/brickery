@@ -1,3 +1,14 @@
+---
+AIGC:
+    Label: "1"
+    ContentProducer: 001191440300708461136T1XGW3
+    ProduceID: 1ff3ab34626ddcd667748776b4e29487_b0205772983b11f19bec525400826444
+    ReservedCode1: +hrwKMka5izhhC/A4j0LgepBu7m4GY1mR5d/zMlk/u2zGEnFDHFJItVDfAk5hjUQYigWNWrzZ7OJj4i7U3IY72fhfekhY7oedtRpCe+sSm3qVnssv6AY76U2Caz12UeM1jjcK/XRLvjFmlBBox4isWFVhiJ06RUGp1XdUild6Gf0EKc7Yok/SYWac0g=
+    ContentPropagator: 001191440300708461136T1XGW3
+    PropagateID: 1ff3ab34626ddcd667748776b4e29487_b0205772983b11f19bec525400826444
+    ReservedCode2: +hrwKMka5izhhC/A4j0LgepBu7m4GY1mR5d/zMlk/u2zGEnFDHFJItVDfAk5hjUQYigWNWrzZ7OJj4i7U3IY72fhfekhY7oedtRpCe+sSm3qVnssv6AY76U2Caz12UeM1jjcK/XRLvjFmlBBox4isWFVhiJ06RUGp1XdUild6Gf0EKc7Yok/SYWac0g=
+---
+
 # B6 产出链路：独立运行时打包
 
 > 阶段二心脏归位最后一步。目标：产出的 agent 不装 Shadeling / 不依赖开发环境，双击即跑。
@@ -50,3 +61,4 @@
 - 产出目录含 `.app/Contents/Resources/brickery-runtime/`（有 runtime + memory 模块）
 - run.sh 不出现 `shadeling` 命令依赖
 - 单测全绿（runtime 195 + memory 69）
+*（内容由AI生成，仅供参考）*

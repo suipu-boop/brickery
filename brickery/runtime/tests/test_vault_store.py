@@ -1,7 +1,7 @@
 """VaultStore 回归测试：路径同源推导 + sync_skills 全量同步 + 基础增/查/提醒。
 
 覆盖 2026-08-12 修的两个真实 bug：
-- 路径分裂：VAULT_DIR 必须与 ipc 同源（经 SHADELING_HOME 推导），否则 UI 与 agent 各写各库。
+- 路径分裂：VAULT_DIR 必须与 ipc 同源（经 BRICKERY_HOME 推导），否则 UI 与 agent 各写各库。
 - sync_skills 的 return 缩进错误：只同步首个技能，其余丢失。
 """
 import os
@@ -14,21 +14,21 @@ from brickery.runtime.vault_store import VaultStore, _resolve_vault_dir
 
 class TestVaultStore(unittest.TestCase):
     def setUp(self):
-        self._orig_home = os.environ.get("SHADELING_HOME")
+        self._orig_home = os.environ.get("BRICKERY_HOME")
         self.tmp = tempfile.mkdtemp()
-        os.environ["SHADELING_HOME"] = self.tmp
+        os.environ["BRICKERY_HOME"] = self.tmp
 
     def tearDown(self):
         if self._orig_home is None:
-            os.environ.pop("SHADELING_HOME", None)
+            os.environ.pop("BRICKERY_HOME", None)
         else:
-            os.environ["SHADELING_HOME"] = self._orig_home
+            os.environ["BRICKERY_HOME"] = self._orig_home
 
-    def test_resolve_dir_under_shaDELING_HOME(self):
-        # 路径同源：必须落在 SHADELING_HOME/vault，与 ipc._vault() 一致
+    def test_resolve_dir_under_BRICKERY_HOME(self):
+        # 路径同源：必须落在 BRICKERY_HOME/vault，与 ipc._vault() 一致
         d = _resolve_vault_dir()
         self.assertTrue(str(d).startswith(self.tmp),
-                        f"Vault 目录应在 SHADELING_HOME 下，实际 {d}")
+                        f"Vault 目录应在 BRICKERY_HOME 下，实际 {d}")
         self.assertTrue(str(d).endswith("vault"), f"应为 vault 子目录，实际 {d}")
 
     def test_sync_skills_syncs_all(self):

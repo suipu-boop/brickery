@@ -142,7 +142,7 @@ def _web_fetch(url: str, sandbox: Optional[Sandbox] = None) -> str:
         return (f"[web_fetch] 仅支持 http/https"
                 f"（拒绝 {parsed.scheme or '空'} scheme，防本地文件绕过）")
     req = urllib.request.Request(
-        u, headers={"User-Agent": "Mozilla/5.0 (Shadeling)"})
+        u, headers={"User-Agent": "Mozilla/5.0 (Brickery)"})
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             raw = resp.read()
@@ -325,8 +325,8 @@ def _code_run(language: str, code: str, sandbox: Optional[Sandbox] = None) -> st
                 .format(language))
     interpreter, ext = _CODE_LANGS[lang]
     sb = sandbox or default_sandbox()
-    # scratch 目录落在 ~/.shadeling 下（属写白名单），与用户文件隔离
-    base = Path.home() / ".shadeling" / ".coderun_tmp"
+    # scratch 目录落在 ~/.brickery 下（属写白名单），与用户文件隔离
+    base = Path.home() / ".brickery" / ".coderun_tmp"
     try:
         base.mkdir(parents=True, exist_ok=True)
         tmp = Path(_tempfile.mkdtemp(prefix="run_", dir=str(base)))

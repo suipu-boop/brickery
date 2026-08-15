@@ -88,7 +88,7 @@ class TestModelDownload(unittest.TestCase):
 
     def test_download_success(self):
         base = f"http://127.0.0.1:{self.port}"
-        os.environ["SHADELING_HF_MIRROR"] = base
+        os.environ["BRICKERY_HF_MIRROR"] = base
         orig = model_catalog._model_entry
         model_catalog._model_entry = self._entry
         tmp = Path(__file__).parent / "_tmpdl"
@@ -111,11 +111,11 @@ class TestModelDownload(unittest.TestCase):
                 (tmp / "gguf").rmdir()
             if tmp.exists():
                 tmp.rmdir()
-            os.environ.pop("SHADELING_HF_MIRROR", None)
+            os.environ.pop("BRICKERY_HF_MIRROR", None)
 
     def test_download_404_error(self):
         base = f"http://127.0.0.1:{self.port}"
-        os.environ["SHADELING_HF_MIRROR"] = base
+        os.environ["BRICKERY_HF_MIRROR"] = base
         # 指向不存在的路径 -> 404
         orig = model_catalog._model_entry
         model_catalog._model_entry = lambda mid: {"id": mid, "repo": "missing",
@@ -133,7 +133,7 @@ class TestModelDownload(unittest.TestCase):
             self.assertEqual(s["state"], "error")
         finally:
             model_catalog._model_entry = orig
-            os.environ.pop("SHADELING_HF_MIRROR", None)
+            os.environ.pop("BRICKERY_HF_MIRROR", None)
 
 
 if __name__ == "__main__":

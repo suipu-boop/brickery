@@ -6,7 +6,7 @@ create -> 元素级编辑 -> save 工作流。
 
 设计要点：
 - 本地直连，绕开环境代理（urllib ProxyHandler({})，等价于 curl --noproxy）。
-- 引擎二进制由技能市场安装时落盘到 SHADELING_HOME/bin/<source>/，
+- 引擎二进制由技能市场安装时落盘到 BRICKERY_HOME/bin/<source>/，
   运行时由 ensure_engine 复用已运行的实例或自行拉起。
 - 所有响应走人读文本 / JSON，用正则 + JSON 双解析，容错。
 - 不抛未捕获异常；上层 handler 统一把失败转成 [DocWritePro] 提示串。

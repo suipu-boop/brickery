@@ -39,7 +39,7 @@ def _start_backend(repo_root: Path, port: int, home: Path) -> subprocess.Popen:
     env = os.environ.copy()
     env["BRICKERY_HOME"] = str(home)
     env["PYTHONPATH"] = str(repo_root)
-    env["SHADELING_SKIP_CONNECTORS"] = "1"
+    env["BRICKERY_SKIP_CONNECTORS"] = "1"
     return subprocess.Popen(
         [sys.executable, "-m", "brickery.runtime.ipc", "--port", str(port), "--home", str(home)],
         cwd=str(repo_root), env=env,

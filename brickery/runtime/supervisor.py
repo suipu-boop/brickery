@@ -5,7 +5,7 @@
 - 任一层父进程意外死亡，子层都能感知并优雅退出，绝不遗留孤儿。
 
 职责（全部纯代码确定性，绝不依赖任何模型）：
-- 拉起 `python -m runtime.ipc` 子进程（透传 PYTHONPATH / SHADELING_HOME）。
+- 拉起 `python -m runtime.ipc` 子进程（透传 PYTHONPATH / BRICKERY_HOME）。
 - 周期探活：端口能连通且后端能响应 health，即视为存活。
 - 后端崩溃 / 启动失败：自动重启，重启间隔按指数退避（封顶）。
 - 连续失败超限：停止盲重启，生成纯代码诊断报告（把后端错误日志按已知模式
@@ -152,7 +152,7 @@ class Supervisor:
         self.port = port
         self.host = host
         self.home = Path(home) if home else Path(
-            os.environ.get("SHADELING_HOME", Path.home() / ".shadeling"))
+            os.environ.get("BRICKERY_HOME", Path.home() / ".brickery"))
         self.home.mkdir(parents=True, exist_ok=True)
         self.python = python or sys.executable
         # repo 根：supervisor.py 位于 <repo>/runtime/，故父目录即仓库根
@@ -209,7 +209,7 @@ class Supervisor:
         if existing:
             parts.append(existing)
         env["PYTHONPATH"] = os.pathsep.join(parts)
-        env["SHADELING_HOME"] = str(self.home)
+        env["BRICKERY_HOME"] = str(self.home)
         return env
 
     def _spawn_backend(self) -> None:
@@ -390,7 +390,7 @@ class Supervisor:
                 json.dumps(report, ensure_ascii=False, indent=2),
                 encoding="utf-8")
             txt = (
-                "Shadeling 后端自愈诊断报告\n"
+                "Brickery 后端自愈诊断报告\n"
                 f"生成时间：{report['generated_at']}\n"
                 f"触发原因：{reason}\n"
                 f"自愈尝试次数：{self.restarts}\n"
@@ -540,7 +540,7 @@ class Supervisor:
 
 
 def main(argv: Optional[list] = None) -> int:
-    ap = argparse.ArgumentParser(description="Shadeling 后端监督器")
+    ap = argparse.ArgumentParser(description="Brickery 后端监督器")
     ap.add_argument("--host", default=DEFAULT_HOST)
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--home", default=None)
@@ -548,7 +548,7 @@ def main(argv: Optional[list] = None) -> int:
 
     sup = Supervisor(port=args.port, host=args.host, home=args.home)
     sup.install_signal_handlers()
-    print(f"[Shadeling Supervisor] 启动，监控后端于 {sup.host}:{sup.port}"
+    print(f"[Brickery Supervisor] 启动，监控后端于 {sup.host}:{sup.port}"
           f"（home={sup.home}）", flush=True)
     sup.start(block=True)
     return 0

@@ -30,23 +30,20 @@ from .skill_contract import Skill
 
 
 def _host_import(module: str, *attrs):
-    """从宿主内核（shadeling.runtime）或本包惰性导入能力。
+    """从本包（brickery.runtime）惰性导入能力。
 
-    brickery 是「平台」，动态激活委托宿主内核机制（registry / factory）。
-    优先尝试宿主包 shadeling.runtime.<module>，其次本包 <module>；
-    均不可用时返回 None，由调用方报「宿主内核未提供该能力」。
+    brickery 是「平台」，动态激活委托本包运行时机制（registry / factory）。
+    优先尝试本包 <module>；不可用时返回 None，由调用方报「运行时未提供该能力」。
     """
-    candidates = [f"shadeling.runtime.{module}", f"{__package__}.{module}"]
-    for cand in candidates:
-        try:
-            mod = __import__(cand, fromlist=attrs)
-            got = tuple(getattr(mod, a) for a in attrs)
-            if len(got) == 1:
-                return got[0]
-            return got
-        except (ImportError, AttributeError):
-            continue
-    return None
+    cand = f"{__package__}.{module}"
+    try:
+        mod = __import__(cand, fromlist=attrs)
+        got = tuple(getattr(mod, a) for a in attrs)
+        if len(got) == 1:
+            return got[0]
+        return got
+    except (ImportError, AttributeError):
+        return None
 
 # Skill 数据类已含 brick.json 的全部字段（P0 契约），直映射即可。
 _SKILL_FIELDS = set(Skill.__dataclass_fields__.keys())

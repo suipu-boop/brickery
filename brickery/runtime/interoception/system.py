@@ -4,7 +4,7 @@
 1. 把本轮观测转为传感器读数（推入短期窗、更新长期基线）
 2. 融合为五维感觉向量
 3. 计算趋势 / 预警 / 自然语摘要
-4. 持久化到 ~/.shadeling/interoception/state.json（含 baseline.json）
+4. 持久化到 ~/.brickery/interoception/state.json（含 baseline.json）
 全程同步、报错静默，不阻塞主流程。
 """
 from __future__ import annotations
@@ -23,9 +23,9 @@ from .state import InteroceptiveState, save_state, load_state
 
 def _default_home() -> Path:
     """解析 Shadeling 运行时根（与 config.paths.get_home 一致）：
-    SHADELING_HOME 环境变量可覆盖，默认 ~/.shadeling。"""
-    return Path(os.environ.get("SHADELING_HOME",
-                               os.path.expanduser("~/.shadeling")))
+    BRICKERY_HOME 环境变量可覆盖，默认 ~/.brickery。"""
+    return Path(os.environ.get("BRICKERY_HOME",
+                               os.path.expanduser("~/.brickery")))
 
 
 class InteroceptionSystem:

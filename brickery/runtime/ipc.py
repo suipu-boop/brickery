@@ -52,20 +52,20 @@ from brickery.memory.db import consolidation_conn
 from brickery.memory.surfacing import ShadowEngine
 from brickery.memory.export_utils import to_markdown, to_json
 
-logger = logging.getLogger("shadeling.ipc")
+logger = logging.getLogger("brickery.ipc")
 
 
 # --------------------------------------------------------------------------
 # 内置技能（随安装包分发，不走技能市场）
-# 定位：打包态 runtime 在 <root>/Shadeling/runtime/；开发态在 <repo>/runtime/。
+# 定位：打包态 runtime 在 <root>/brickery-runtime/brickery/runtime/；开发态在 <repo>/brickery/runtime/。
 def _builtin_skills_dir() -> Optional[Path]:
-    env = os.environ.get("SHADELING_BUILTIN_SKILLS")
+    env = os.environ.get("BRICKERY_BUILTIN_SKILLS")
     if env:
         p = Path(env)
         if p.is_dir():
             return p
     here = Path(__file__).resolve()
-    cand = here.parents[1] / "builtin_skills"    # 打包态：Shadeling/builtin_skills
+    cand = here.parents[1] / "builtin_skills"    # 打包态：brickery-runtime/brickery/builtin_skills
     if cand.is_dir():
         return cand
     cand2 = here.parents[2] / "builtin_skills"    # 开发态：<repo>/builtin_skills
@@ -100,7 +100,7 @@ def load_builtin_skills(registry: SkillRegistry, home: Path) -> None:
                 registry.load(tf)   # 同名技能后续被用户 skills.json 覆盖
             except Exception:       # noqa: BLE001
                 pass
-    # 安装各内置技能的辅助产物（脚本/二进制）到 ~/.shadeling/bin/<技能名>/
+    # 安装各内置技能的辅助产物（脚本/二进制）到 ~/.brickery/bin/<技能名>/
     # 约定：技能目录下除 skill.json / *.swift 源码外的文件（render_diagram.py、axctl 二进制等）
     # 装入 bin/<技能名>/，供技能 content 经 Bash 调用。产物保留可执行位。
     try:
@@ -346,7 +346,7 @@ class IpcServer:
         孤儿继续监听 18765，且内存中是空/陈旧配置。下次启动的新后端因端口被占
         绑定失败 → 自愈也绑不上 → App 被迫连接陈旧空配置进程，表现为
         『退出重启后 API 丢失』。此处在绑定前强制清掉占用者，确保本次是从磁盘
-        加载配置的全新后端（load_config 已在启动时读 ~/.shadeling/config.json）。
+        加载配置的全新后端（load_config 已在启动时读 ~/.brickery/config.json）。
         """
         try:
             out = subprocess.run(
@@ -369,7 +369,7 @@ class IpcServer:
                         ["ps", "-p", str(pid), "-o", "command="],
                         capture_output=True, text=True, timeout=3)
                     cmd = (c.stdout or "").strip().lower()
-                    is_ours = ("shadeling" in cmd or "ipc.py" in cmd
+                    is_ours = ("brickery" in cmd or "ipc.py" in cmd
                                or "runtime" in cmd)
                 except Exception:  # noqa: BLE001
                     pass
@@ -398,7 +398,7 @@ class IpcServer:
                 time.sleep(0.3)
         if not bound:
             sys.stderr.write(
-                f"[Shadeling IPC] 无法绑定 {self.host}:{self.port}：端口释放失败，"
+                f"[Brickery IPC] 无法绑定 {self.host}:{self.port}：端口释放失败，"
                 f"端口被其它程序占用。请释放后重试。\n")
             sys.stderr.flush()
             raise OSError(f"bind {self.host}:{self.port} failed")
@@ -932,7 +932,7 @@ class IpcServer:
         from datetime import datetime
         stamp = datetime.now().strftime("%Y%m%d")
         return {"content": content,
-                "filename": f"shadeling-memory-{stamp}.{ext}",
+                "filename": f"brickery-memory-{stamp}.{ext}",
                 "format": fmt}
 
     # 建议反馈的合法取值：与记忆层 record_feedback 的契约保持一致。
@@ -1448,7 +1448,7 @@ class IpcServer:
     def _h_interoception_state(self, params):
         """§4.5 III：暴露内感受当前状态给 UI（doctor 体感分段 + 聊天窗提示条）。
 
-        状态为运行时数据（~/.shadeling/interoception/state.json），全新安装为空。
+        状态为运行时数据（~/.brickery/interoception/state.json），全新安装为空。
         空态也返回 ok=True（前端据此显示「尚未采集」），不报错。
         """
         try:
@@ -1798,7 +1798,7 @@ class IpcServer:
         return {"ok": True, "backend": self.config.engine.backend}
 
     def _h_feishu_setup(self, params):
-        """从引导 UI 接收飞书 app_id/app_secret，写入 ~/.shadeling/config/feishu.json。
+        """从引导 UI 接收飞书 app_id/app_secret，写入 ~/.brickery/config/feishu.json。
 
         极简引导：用户只填这两个字段。其余由连接器自动处理：
         - ws_url 由连接器用 tenant_access_token 自动向 portal 拉取；
@@ -1831,7 +1831,7 @@ class IpcServer:
         }
 
     def _h_telegram_setup(self, params):
-        """从引导 UI 接收 Telegram bot_token，写入 ~/.shadeling/config/telegram.json。
+        """从引导 UI 接收 Telegram bot_token，写入 ~/.brickery/config/telegram.json。
 
         极简引导：用户只填 bot_token（由 @BotFather 创建 bot 获得）。其余由连接器自动处理：
         - 首个对自己 bot 说话的 Telegram 账号自动成为授权用户（auto_bind_owner）；
@@ -2104,7 +2104,7 @@ class IpcServer:
         markers = ["config.json", "config", "memory.db", "sessions.db",
                    "memory", "cabinet.db", "filing.db", "consolidation.db"]
         if not any((src_dir / m).exists() for m in markers):
-            raise ValueError("该目录不像 Shadeling 备份（缺少 config/config.json/memory 等标记），已拒绝以防误覆盖。")
+            raise ValueError("该目录不像 Brickery 备份（缺少 config/config.json/memory 等标记），已拒绝以防误覆盖。")
         home = self.config.home
         home.mkdir(parents=True, exist_ok=True)
         copied = 0
@@ -2119,7 +2119,7 @@ class IpcServer:
             copied += 1
         return {
             "ok": True,
-            "message": f"已从 {src_dir} 恢复 {copied} 个项目到 {home}。重启 Shadeling 后生效。",
+            "message": f"已从 {src_dir} 恢复 {copied} 个项目到 {home}。重启 Brickery 后生效。",
         }
 
     def _h_backup_default(self, params):
@@ -2469,7 +2469,7 @@ def main(argv: Optional[list] = None) -> int:
     import argparse
     import signal
     import time
-    ap = argparse.ArgumentParser(description="Shadeling 本地 IPC 服务")
+    ap = argparse.ArgumentParser(description="Brickery 本地 IPC 服务")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--home", default=None)
@@ -2477,12 +2477,12 @@ def main(argv: Optional[list] = None) -> int:
     home = Path(args.home).expanduser() if args.home else None
     srv = IpcServer(host=args.host, port=args.port, home=home)
     srv.start()
-    print(f"[Shadeling IPC] 监听 {srv.host}:{srv.port}", flush=True)
+    print(f"[Brickery IPC] 监听 {srv.host}:{srv.port}", flush=True)
     # 拉起已注册的平台网关连接器（飞书 / Telegram 等；OFF by default，无配置不拉起）。
     # 单连接器故障（如飞书缺 websocket-client）绝不能拖垮整个后端：import / 构造 / 注册
     # 全部隔离，失败仅告警，核心引擎（ipc + 主推理后端）照常运行。
-    # SHADELING_SKIP_CONNECTORS=1 跳过连接器启动（冒烟测试/CI 用）。
-    if os.environ.get("SHADELING_SKIP_CONNECTORS") != "1":
+    # BRICKERY_SKIP_CONNECTORS=1 跳过连接器启动（冒烟测试/CI 用）。
+    if os.environ.get("BRICKERY_SKIP_CONNECTORS") != "1":
         try:
             from runtime.connectors.feishu import FeishuConnector
             from runtime.connectors.telegram import TelegramConnector
@@ -2493,9 +2493,9 @@ def main(argv: Optional[list] = None) -> int:
                 try:
                     _gw.on_start()
                 except Exception as _e:  # noqa: BLE001
-                    print(f"[Shadeling] 网关 {getattr(_gw, 'name', '?')} 启动失败：{_e}", flush=True)
+                    print(f"[Brickery] 网关 {getattr(_gw, 'name', '?')} 启动失败：{_e}", flush=True)
         except Exception as _e:  # noqa: BLE001
-            print(f"[Shadeling] 连接器模块加载失败（飞书/Telegram 不可用，不影响核心引擎）：{_e}", flush=True)
+            print(f"[Brickery] 连接器模块加载失败（飞书/Telegram 不可用，不影响核心引擎）：{_e}", flush=True)
     # 优雅退出：SIGTERM（来自宿主 App 的 Process.terminate）/ SIGINT 都收，
     # 关闭监听 socket 与守护进程，避免退出后留下孤儿子进程。
     # 父进程（宿主 App）守护：若宿主被杀/异常退出，本子进程被 reparent，
@@ -2525,7 +2525,7 @@ def main(argv: Optional[list] = None) -> int:
             from runtime.binary_manager import shutdown_all
             cleaned = shutdown_all()
             if cleaned:
-                print(f"[Shadeling] 已清理 {cleaned} 个引擎子进程", flush=True)
+                print(f"[Brickery] 已清理 {cleaned} 个引擎子进程", flush=True)
         except Exception:  # noqa: BLE001
             pass
         srv.stop()
