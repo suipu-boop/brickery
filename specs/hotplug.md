@@ -2,12 +2,14 @@
 AIGC:
     Label: "1"
     ContentProducer: 001191440300708461136T1XGW3
-    ProduceID: 1ff3ab34626ddcd667748776b4e29487_e3df4d12988d11f18cca525400e6dd8f
-    ReservedCode1: j3JhqHrlXkXQeXrYrcmEV9r4LEFDv6SfG8trQQof2Wd2uLTs2m34kxKwa/3Jz4UatMSWq7VZf32d3xw9oAIiBNQudi8ck5HIVEaCRkX2O8xQLqKaaGhvNHBesuk5eR0T/vlLX2KnQIZfpFSy2fuxT3zv5KP87ddYzCp0M7DpjRSj2/mHJXr1G0oGQDE=
+    ProduceID: 1ff3ab34626ddcd667748776b4e29487_a71354a7989511f19bec525400826444
+    ReservedCode1: 1geVbRz6TU4HreB5yymtuIsJ5Op1qReVoCNka1bBX39vt/9GkmDf5jwyx3tVmvdUzFdAU8k1phiCumT0nTvN5WSZFdXncuREXMoIjqDZDr+z3DDoTDDh0M1jROgfYT/ZN0SmEnxG4sEXJnDo393qRbbqK6qpUcXjv7dEqtOb8EIy5RRup1HJ4wm9K+s=
     ContentPropagator: 001191440300708461136T1XGW3
-    PropagateID: 1ff3ab34626ddcd667748776b4e29487_e3df4d12988d11f18cca525400e6dd8f
-    ReservedCode2: j3JhqHrlXkXQeXrYrcmEV9r4LEFDv6SfG8trQQof2Wd2uLTs2m34kxKwa/3Jz4UatMSWq7VZf32d3xw9oAIiBNQudi8ck5HIVEaCRkX2O8xQLqKaaGhvNHBesuk5eR0T/vlLX2KnQIZfpFSy2fuxT3zv5KP87ddYzCp0M7DpjRSj2/mHJXr1G0oGQDE=
+    PropagateID: 1ff3ab34626ddcd667748776b4e29487_a71354a7989511f19bec525400826444
+    ReservedCode2: 1geVbRz6TU4HreB5yymtuIsJ5Op1qReVoCNka1bBX39vt/9GkmDf5jwyx3tVmvdUzFdAU8k1phiCumT0nTvN5WSZFdXncuREXMoIjqDZDr+z3DDoTDDh0M1jROgfYT/ZN0SmEnxG4sEXJnDo393qRbbqK6qpUcXjv7dEqtOb8EIy5RRup1HJ4wm9K+s=
 ---
+
+
 
 # 热插拔积木方案（Hot-Plug Bricks）
 
@@ -259,4 +261,5 @@ shadeling-bricks/
 
 - 热插拔是 **P6（积木市场）的运行时形态**：P6 原本"在线浏览/安装"，本方案推进到"运行期插拔"，是 P6 的升级版而非新增阶段。
 - 依赖待办：端口冲突根治（产出 agent 动态分配端口）、config.json 自动生成（engine-api 默认模板）。
+*（内容由AI生成，仅供参考）*
 *（内容由AI生成，仅供参考）*
