@@ -16,3 +16,4 @@ build/
 # 编辑器
 .idea/
 .vscode/
+brickery/fixtures/skill_repo/bin/editor_sdk
