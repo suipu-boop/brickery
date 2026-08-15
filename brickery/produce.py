@@ -188,11 +188,21 @@ def _bundle_app(out_dir: Path, meta: ProduceMeta) -> None:
     (contents / "Info.plist").write_text(plist, encoding="utf-8")
 
     launcher = f"""#!/bin/bash
-# {meta.name} launcher —— 从 .app 内定位 agent 目录并启动
+# {meta.name} launcher —— 自包含启动：数据目录在 ~/Library/Application Support/{meta.name}/
+# 不依赖包外任何文件（run.sh 仅开发态使用）。
 set -euo pipefail
-# launcher 位于 Contents/MacOS/，上三级即 agent 目录（run.sh 所在处）
-AGENT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
-exec "$AGENT_DIR/run.sh"
+# launcher 位于 Contents/MacOS/，上两级即 .app 根目录
+APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+RESOURCES="$APP_DIR/Contents/Resources"
+RUNTIME_DIR="$RESOURCES/brickery-runtime"
+DATA_DIR="$HOME/Library/Application Support/{meta.name}"
+if [ ! -d "$RUNTIME_DIR" ]; then
+  echo "[{meta.name}] 错误：未找到打包运行时（$RUNTIME_DIR）" >&2
+  exit 1
+fi
+mkdir -p "$DATA_DIR"
+export PYTHONPATH="$RUNTIME_DIR"
+exec python3 -m brickery.runtime.ipc --home "$DATA_DIR" --app-resources "$RESOURCES"
 """
     launcher_path = macos / "launcher"
     launcher_path.write_text(launcher, encoding="utf-8")

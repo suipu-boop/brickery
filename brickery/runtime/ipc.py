@@ -30,6 +30,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from . import paths
 from .config import Config, EngineConfig, load_config
 from .engine_router import (EngineRouter, NoEngineConfigured, EngineResult,
                              ToolCall, PromptUsage)
@@ -2465,6 +2466,31 @@ class IpcServer:
 # 独立启动入口（供 Swift 子进程调用：python -m runtime.ipc --port <p>）
 # --------------------------------------------------------------------------
 
+def _ensure_agent_home(home: Path, app_resources: Optional[Path]) -> None:
+    """安装态首次启动初始化：从 .app 内部 Resources 复制模板到数据目录。
+
+    幂等：以 home/agent.json 存在为"已初始化"标记，已初始化则完全跳过，
+    绝不覆盖用户已有数据。config.json / sessions.db 由 load_config /
+    SessionStore 自动兜底（缺失回退安全默认 / 自动建库建表），无需在此生成。
+    开发态（run.sh 直跑 agent 目录）不传 --app-resources，本函数直接返回。
+    """
+    if not app_resources or not app_resources.is_dir():
+        return
+    home.mkdir(parents=True, exist_ok=True)
+    marker = home / "agent.json"
+    if marker.exists():
+        return
+    src_agent = app_resources / "agent.json"
+    src_bricks = app_resources / "bricks"
+    if src_agent.exists():
+        shutil.copy2(src_agent, marker)
+    if src_bricks.is_dir():
+        dst_bricks = home / "bricks"
+        if not dst_bricks.exists():
+            shutil.copytree(src_bricks, dst_bricks)
+    print(f"[Brickery] 首次启动：已从安装包初始化数据目录 {home}", flush=True)
+
+
 def main(argv: Optional[list] = None) -> int:
     import argparse
     import signal
@@ -2473,8 +2499,13 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--home", default=None)
+    ap.add_argument("--app-resources", default=None)
     args = ap.parse_args(argv)
     home = Path(args.home).expanduser() if args.home else None
+    app_resources = Path(args.app_resources).expanduser() if args.app_resources else None
+    if app_resources is not None:
+        home = home or paths.get_home()
+        _ensure_agent_home(home, app_resources)
     srv = IpcServer(host=args.host, port=args.port, home=home)
     srv.start()
     print(f"[Brickery IPC] 监听 {srv.host}:{srv.port}", flush=True)
