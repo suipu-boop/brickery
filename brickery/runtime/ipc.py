@@ -1015,7 +1015,7 @@ class IpcServer:
     # 体积为零，符合「空白安装包」原则）。正式 .app 未配置且无本地 fixtures 时自动连接，
     # 用户开箱即连、无需手填 URL；仍可在设置页改为私有源或离线。
     DEFAULT_PUBLIC_SKILL_REPO_URL = (
-        "https://raw.githubusercontent.com/suipu-boop/shadeling-skills/main/index.json"
+        "https://raw.githubusercontent.com/suipu-boop/shadeling-bricks/main/skills/index.json"
     )
 
     def _resolve_skill_repo_url(self) -> str:
