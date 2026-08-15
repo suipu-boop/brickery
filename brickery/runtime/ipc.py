@@ -180,7 +180,7 @@ class IpcServer:
         # 飞书任务完成通知：轻量推送器（与连接器双向桥解耦）。未装配时静默跳过。
         # 惰性导入避免 ipc↔feishu 顶层循环依赖（feishu 导入 ipc.DEFAULT_PORT）。
         try:
-            from runtime.connectors.feishu import FeishuNotifier
+            from .connectors.feishu import FeishuNotifier
             self.feishu_notifier = FeishuNotifier(
                 self.config.home / "config" / "feishu.json")
         except Exception:  # noqa: BLE001
@@ -696,7 +696,7 @@ class IpcServer:
         - 任何失败（缺权重 / 缺依赖）均安全降级为 None，不阻断主流程。
         """
         try:
-            from config import paths
+            from . import paths
             root = paths.resolve_models_root()
             hits = sorted((root / "gguf").glob("*.gguf")) if (root / "gguf").exists() else []
             if not hits:
@@ -1806,7 +1806,7 @@ class IpcServer:
         - 第一个对自己 bot 说话的飞书账号自动成为授权用户（auto_bind_owner）。
         凭据仅存本地 config，不进 git、不进记忆库。OFF 之外的启用由写入 enabled=true 完成。
         """
-        from config.paths import get_config_dir
+        from .paths import get_config_dir
         app_id = (params.get("app_id") or "").strip()
         app_secret = (params.get("app_secret") or "").strip()
         if not app_id or not app_secret:
@@ -1840,7 +1840,7 @@ class IpcServer:
         凭据仅存本地 config，不进 git、不进记忆库。OFF 之外的启用由写入 enabled=true 完成。
         与飞书同构（见 docs/connectors_feishu_design.md）。
         """
-        from config.paths import get_config_dir
+        from .paths import get_config_dir
         bot_token = (params.get("bot_token") or "").strip()
         if not bot_token:
             raise ValueError("bot_token 为必填")
@@ -2515,9 +2515,9 @@ def main(argv: Optional[list] = None) -> int:
     # BRICKERY_SKIP_CONNECTORS=1 跳过连接器启动（冒烟测试/CI 用）。
     if os.environ.get("BRICKERY_SKIP_CONNECTORS") != "1":
         try:
-            from runtime.connectors.feishu import FeishuConnector
-            from runtime.connectors.telegram import TelegramConnector
-            from runtime.gateway import GatewayRegistry
+            from .connectors.feishu import FeishuConnector
+            from .connectors.telegram import TelegramConnector
+            from .gateway import GatewayRegistry
             GatewayRegistry.register(FeishuConnector(ipc_port=args.port))
             GatewayRegistry.register(TelegramConnector(ipc_port=args.port))
             for _gw in GatewayRegistry.all():
@@ -2550,7 +2550,7 @@ def main(argv: Optional[list] = None) -> int:
 
     def _sig_handler(signum, frame):
         # 先停网关连接器（飞书等），再停引擎二进制，最后停 IPC 服务
-        from runtime.gateway import GatewayRegistry
+        from .gateway import GatewayRegistry
         for _gw in GatewayRegistry.all():
             try:
                 _gw.on_stop()
@@ -2558,7 +2558,7 @@ def main(argv: Optional[list] = None) -> int:
                 pass
         # 关闭所有由 BinaryManager 跟踪的引擎进程（SIGTERM -> SIGKILL，不留孤儿）
         try:
-            from runtime.binary_manager import shutdown_all
+            from .binary_manager import shutdown_all
             cleaned = shutdown_all()
             if cleaned:
                 print(f"[Brickery] 已清理 {cleaned} 个引擎子进程", flush=True)

@@ -35,7 +35,7 @@ def _host_import(module: str, *attrs):
     brickery 是「平台」，动态激活委托本包运行时机制（registry / factory）。
     优先尝试本包 <module>；不可用时返回 None，由调用方报「运行时未提供该能力」。
     """
-    cand = f"{__package__}.{module}"
+    cand = f"{__package__}.runtime.{module}"
     try:
         mod = __import__(cand, fromlist=attrs)
         got = tuple(getattr(mod, a) for a in attrs)

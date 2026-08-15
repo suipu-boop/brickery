@@ -202,8 +202,8 @@ class AgentLoop:
         空核直接返回空字符串，不增加 prompt 开销。
         """
         try:
-            from memory.fixed_core import get_all_core_text as _gact
-            from memory.fixed_core import get_core as _get_core
+            from ..memory.fixed_core import get_all_core_text as _gact
+            from ..memory.fixed_core import get_core as _get_core
             text = _gact()
             if not text:
                 return ""
