@@ -190,8 +190,9 @@ def _bundle_app(out_dir: Path, meta: ProduceMeta) -> None:
     launcher = f"""#!/bin/bash
 # {meta.name} launcher —— 从 .app 内定位 agent 目录并启动
 set -euo pipefail
-APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-exec "$APP_DIR/run.sh"
+# launcher 位于 Contents/MacOS/，上三级即 agent 目录（run.sh 所在处）
+AGENT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+exec "$AGENT_DIR/run.sh"
 """
     launcher_path = macos / "launcher"
     launcher_path.write_text(launcher, encoding="utf-8")

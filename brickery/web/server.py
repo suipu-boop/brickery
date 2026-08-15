@@ -13,17 +13,26 @@ API：
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
 from ..assembler import AssemblyError, load_vault
-from ..produce import ProduceError, ProduceMeta, produce
+from ..produce import DEFAULT_AGENTS_ROOT, ProduceError, ProduceMeta, produce
 
 DEFAULT_VAULT = str(Path.home() / "Dev" / "brick-vault")
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+
+# DMG 打包需要 dmgbuild + PIL，web server（系统 python3）无此依赖，
+# 通过 subprocess 调受管 venv python 执行 brickery/dmg.py。
+# 可用环境变量 BRICKERY_DMG_PY 覆盖。
+DEFAULT_DMG_PY = "/Users/suipu/.workbuddy/binaries/python/envs/default/bin/python3"
+# DMG 输出目录（默认桌面）
+DEFAULT_DMG_OUT = Path.home() / "Desktop"
 
 # 前端文件目录：仓库根 web/（server.py 位于 brickery/web/，向上三级）
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "web"
@@ -54,6 +63,8 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             self._api_assemble(body)
         elif path == "/api/produce":
             self._api_produce(body)
+        elif path == "/api/dmg":
+            self._api_dmg(body)
         else:
             self._json({"error": "not found"}, status=404)
 
@@ -122,7 +133,44 @@ class BrickeryHandler(BaseHTTPRequestHandler):
         except (AssemblyError, ProduceError) as e:
             self._json({"ok": False, "error": str(e)})
             return
-        self._json({"ok": True, "path": str(out), "name": meta.name})
+        self._json({
+            "ok": True,
+            "path": str(out),
+            "name": meta.name,
+            # 真实磁盘体积（MB）：积木声明的 disk_mb 是资源预算，非包体积
+            "real_disk_mb": _dir_size_mb(out),
+        })
+
+    def _api_dmg(self, body: dict) -> None:
+        """对已产出 agent 生成 DMG 安装包（桌面）。"""
+        name = str(body.get("name") or "").strip()
+        if not name:
+            self._json({"ok": False, "error": "缺少 agent 名称"})
+            return
+        version = str(body.get("version") or "0.1.0")
+        try:
+            port = int(body.get("port") or 18765)
+        except (TypeError, ValueError):
+            port = 18765
+        root = self.agents_root or DEFAULT_AGENTS_ROOT
+        agent_dir = root / name
+        if not agent_dir.is_dir():
+            self._json({"ok": False, "error": f"agent 不存在：{name}"})
+            return
+        out_dmg = DEFAULT_DMG_OUT / f"{name}-{version}.dmg"
+        py_bin = os.environ.get("BRICKERY_DMG_PY", DEFAULT_DMG_PY)
+        dmg_script = Path(__file__).resolve().parent.parent / "dmg.py"
+        try:
+            subprocess.run(
+                [py_bin, str(dmg_script), "--agent", str(agent_dir),
+                 "--out", str(out_dmg), "--name", name,
+                 "--version", version, "--port", str(port)],
+                check=True, capture_output=True, text=True, timeout=180,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            self._json({"ok": False, "error": f"DMG 生成失败：{e}"})
+            return
+        self._json({"ok": True, "path": str(out_dmg)})
 
     # ---- 工具 ----
     def _json(self, obj: dict, status: int = 200) -> None:
@@ -137,6 +185,14 @@ class BrickeryHandler(BaseHTTPRequestHandler):
         # 精简日志：只留请求行
         if fmt.startswith('"%s '):
             print(f"[brickery] {args[0]}")
+
+
+def _dir_size_mb(path: Path) -> int:
+    """计算目录真实体积（MB，du -sm 取整）。"""
+    try:
+        return int(subprocess.check_output(["du", "-sm", str(path)]).split()[0])
+    except (subprocess.SubprocessError, OSError, ValueError, IndexError):
+        return 0
 
 
 def serve(vault_root: str = DEFAULT_VAULT,

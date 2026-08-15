@@ -221,6 +221,9 @@
   #produce-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
   #result { font-size: 12px; color: var(--ok); word-break: break-all; }
   #result .path { font-family: ui-monospace, Menlo, monospace; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; display: block; margin-top: 4px; }
+  #result .meta-line { color: var(--ink-soft); margin-top: 6px; }
+  #result .meta-line b { color: var(--amber); }
+  #dmg-result { font-size: 12px; color: var(--ok); margin-top: 6px; }
   .next-steps { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
   .next-steps a, .next-steps button {
     border: 1px solid var(--line-strong); background: var(--paper);
@@ -424,7 +427,7 @@ function brickCard(b, q) {
         <div><span class="d-label">积木依赖</span><div class="dep">${deps}</div></div>
         ${extDeps ? `<div><span class="d-label">外部依赖</span><div class="dep">${esc(extDeps)}</div></div>` : ''}
         ${(b.conflicts || []).length ? `<div><span class="d-label">冲突</span><div class="dep">${esc(b.conflicts.join('、'))}</div></div>` : ''}
-        <div><span class="d-label">资源</span><div class="dep">内存 ${esc(b.resources.memory_mb || 0)}MB · 磁盘 ${esc(b.resources.disk_mb || 0)}MB${b.resources.network ? ' · 需联网' : ''}</div></div>
+        <div><span class="d-label">资源</span><div class="dep">内存预算 ${esc(b.resources.memory_mb || 0)}MB · 磁盘预算 ${esc(b.resources.disk_mb || 0)}MB${b.resources.network ? ' · 需联网' : ''}</div></div>
       </div>
     </div>`;
 }
@@ -498,8 +501,8 @@ async function checkPlan() {
     $('plan-order').innerHTML = p.order.map(n => `<b>${esc(n)}</b>`).join(' → ');
     const res = p.resources_total;
     $('plan-res').innerHTML = `
-      <span class="item">内存 <b>${res.memory_mb}MB</b></span>
-      <span class="item">磁盘 <b>${res.disk_mb}MB</b></span>
+      <span class="item">内存预算 <b>${res.memory_mb}MB</b></span>
+      <span class="item">磁盘预算 <b>${res.disk_mb}MB</b></span>
       <span class="item">端口 <b>${res.ports.join(',') || '无'}</b></span>`;
     $('produce-btn').disabled = false;
   } catch (e) {
@@ -535,15 +538,42 @@ async function produce() {
     $('result').innerHTML =
       '已产出 agent「' + esc(data.name) + '」' +
       '<span class="path">' + esc(data.path) + '</span>' +
+      '<div class="meta-line">实际体积 <b>' + (data.real_disk_mb || 0) + 'MB</b>（积木声明的磁盘预算为运行时资源需求，非包体积）</div>' +
       '<div class="next-steps">' +
       '<a href="file://' + esc(data.path) + '" target="_blank">打开目录</a>' +
+      '<button onclick="makeDmg()">生成 DMG 安装包</button>' +
       '<button onclick="resetAll()">再做一个</button>' +
-      '</div>';
+      '</div>' +
+      '<div id="dmg-result"></div>';
     $('produce-btn').disabled = false;
   } catch (e) {
     $('error').textContent = '产出请求失败：' + e.message;
     $('result').textContent = '';
     $('produce-btn').disabled = false;
+  }
+}
+
+/* ============ DMG 安装包 ============ */
+async function makeDmg() {
+  const name = $('agent-name').value.trim();
+  const version = '0.1.0';
+  const port = 18765;
+  const box = $('dmg-result');
+  box.textContent = '正在生成 DMG 安装包（约需几秒）…';
+  try {
+    const r = await fetch('/api/dmg', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, version, port })
+    });
+    const data = await r.json();
+    if (!data.ok) {
+      box.textContent = 'DMG 生成失败：' + data.error;
+      return;
+    }
+    box.innerHTML = 'DMG 安装包已生成：<span class="path">' + esc(data.path) + '</span>';
+  } catch (e) {
+    box.textContent = 'DMG 请求失败：' + e.message;
   }
 }
 
