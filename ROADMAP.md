@@ -41,6 +41,18 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - B5 服务层已迁入（ipc / daemon / sessions / scheduler / gateway / confirm / interoception/ + loop），195 单测通过；test_surfacing 迁回，memory 69 单测通过
 - B6 产出链路已完成：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令；e2e 全链路通过，全量单测 263 passed + 1 skipped
 
+## 今日进度（2026-08-16）
+
+- **底座实施完成（commit `af7d401`，已 push）**：
+  - `setup_wizard.py`：安装引导页（八家 API 预设 + 本地 GGUF 推荐下载 + 验证，写 config.json），127.0.0.1:18766
+  - `chat_ui.py`：本地 web 聊天界面（工坊蓝图风，走引擎路由），127.0.0.1:18767，未配置引擎引导 18766
+  - `ipc.py`：启动扫描 home/bricks 按形态激活积木（故障域隔离），未配置引擎打日志引导
+  - `skill_library.py`：新增 BrickMarket（market_list/install/toggle/uninstall，安装写 home/bricks/<name>/brick.json）
+  - `produce.py`：新增 mode 参数（base=预置7 / full=预置+按需17，内置10 写死内核不打包）
+  - 全量测试 195 passed
+- 接口速查表落盘：`specs/engine-interfaces.md`（根治重复读文件，写代码只查文档）
+- 实施设计落盘：`specs/engine-buildout.md`
+
 ## 今日进度（2026-08-15）
 
 - 阶段一断寄生完成：Shadeling 内组装/积木代码已清空（commit `5cc35b5`，已 push）
@@ -91,9 +103,10 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 
 ## 下一步
 
-**热插拔实施（H1 批次）**：统一路径解析函数 + 三处调用方改造（produce.py / assembler.py / brick_runtime.py），单测覆盖本地/运行时/GitHub 三级解析。方案见 `specs/hotplug.md`。
-
-之后 P4（.dmg 打包）→ P5（Shadeling 接入）→ P6（积木市场 brick-market）。
+- **遗留拍板**：记忆系统 8 能力写死进内核后，对应 memory-* 积木彻底移除还是保留为开关（默认开可关）
+- **P4 .dmg 打包**：重出包到 /Applications，重打 DMG 到桌面验证（用户：不急着打包）
+- **P5 Shadeling 接入**为第一个成品
+- **P6 积木市场**：brick-market 热插拔（BrickMarket 已就绪，接 web 工作台）
 
 ## 关键路径
 
