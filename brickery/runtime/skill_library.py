@@ -443,3 +443,126 @@ class SkillLibrary:
         if entry is None:
             return None, f"目录中找不到技能：{skill_id}"
         return self._download_skill(entry.download_url)
+
+
+class BrickMarket(SkillLibrary):
+    """积木市场（skill-library 改造）：管理功能积木热插拔。
+
+    与 SkillLibrary 的区别：安装目标从 skills.json 改为 home/bricks/<name>/brick.json，
+    由内核启动时（ipc._activate_bricks）按形态激活注册。卸载/停用采用改名
+    `.disabled` 的回收站语义，可随时恢复，不物理删除。
+    """
+
+    def bricks_root(self) -> Path:
+        root = self.home / "bricks"
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        return root
+
+    @staticmethod
+    def _empty_registry():
+        from .skills import SkillRegistry
+        return SkillRegistry()
+
+    def market_list(self, force: bool = False) -> Tuple[Optional[List[dict]], Optional[str]]:
+        """列出市场可安装积木（含本地已装状态）。"""
+        entries, err = self.list_entries(self._empty_registry(), force=force)
+        if err:
+            return None, err
+        installed = {d.name for d in self.bricks_root().iterdir() if d.is_dir()}
+        out = []
+        for e in entries:
+            out.append({
+                "id": e.id,
+                "name": e.name,
+                "version": e.version,
+                "summary": e.summary,
+                "installed": e.name in installed,
+                "installed_version": e.installed_version,
+            })
+        return out, None
+
+    def market_install(self, skill_id: str, force: bool = False) -> Tuple[Optional[Skill], Optional[str]]:
+        """安装积木到 home/bricks/<name>/brick.json（由内核启动时激活）。"""
+        entries, err = self.list_entries(self._empty_registry(), force=force)
+        if err:
+            return None, err
+        entry = next((e for e in entries if e.id == skill_id), None)
+        if entry is None:
+            return None, f"目录中找不到积木：{skill_id}"
+        if (not force and entry.installed_version
+                and _split_version(entry.version) <= _split_version(entry.installed_version)):
+            return None, f"已安装 {entry.installed_version}，无需升级"
+        skill, err = self._download_skill(entry.download_url)
+        if err:
+            return None, err
+        skill.source = skill_id
+        skill.installed_at = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+        if skill.binary_url:
+            ok, berr = self._download_binary(skill)
+            if not ok:
+                return None, f"二进制下载失败：{berr}"
+        from dataclasses import asdict
+        dest_dir = self.bricks_root() / skill.name
+        try:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            (dest_dir / "brick.json").write_text(
+                json.dumps(asdict(skill), ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as e:
+            return None, f"写入积木失败：{e}"
+        return skill, None
+
+    def market_uninstall(self, name: str) -> Tuple[bool, Optional[str]]:
+        """卸载积木（改名 .disabled，可恢复）。"""
+        dest = self.bricks_root() / name
+        if not dest.is_dir():
+            return False, f"未安装积木：{name}"
+        try:
+            dest.rename(self.bricks_root() / f"{name}.disabled")
+        except OSError as e:
+            return False, f"卸载失败：{e}"
+        return True, None
+
+    def market_toggle(self, name: str, enabled: bool) -> Tuple[bool, Optional[str]]:
+        """启用/停用积木（热插拔，改名切换，配合内核启动扫描）。"""
+        root = self.bricks_root()
+        active = root / name
+        disabled = root / f"{name}.disabled"
+        if enabled:
+            if not disabled.is_dir():
+                return False, f"未找到停用的积木：{name}"
+            try:
+                disabled.rename(active)
+            except OSError as e:
+                return False, f"启用失败：{e}"
+            return True, None
+        if not active.is_dir():
+            return False, f"未安装积木：{name}"
+        try:
+            active.rename(disabled)
+        except OSError as e:
+            return False, f"停用失败：{e}"
+        return True, None
+
+    def market_installed(self) -> List[dict]:
+        """列出本地已安装积木（含停用项）。"""
+        out = []
+        for d in self.bricks_root().iterdir():
+            if not d.is_dir():
+                continue
+            manifest = d / "brick.json"
+            if not manifest.is_file():
+                continue
+            try:
+                raw = json.loads(manifest.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            out.append({
+                "name": d.name,
+                "enabled": not d.name.endswith(".disabled"),
+                "summary": raw.get("summary", ""),
+                "version": raw.get("version", ""),
+            })
+        return out

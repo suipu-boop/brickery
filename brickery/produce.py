@@ -44,18 +44,41 @@ class ProduceError(ValueError):
     """产出失败（重名 / 缺积木 / 打包失败）。"""
 
 
+# 积木分层（用户拍板）：内置=写死内核不打包；预置/按需=可打包
+BRICK_TIERS = {
+    "builtin": ["engine-local", "engine-api", "memory-core", "memory-portrait",
+                "memory-fixed-core", "memory-cluster", "memory-cooccurrence",
+                "memory-suggest", "memory-consolidation", "memory-smol"],
+    "preset": ["docwrite", "scheduler", "rules", "doctor", "backup-restore",
+               "meeting-minutes", "visualize"],
+    "ondemand": ["feishu", "telegram", "ax", "browser", "high-config-doc",
+                 "code-quality-chain", "multi-agent", "mcp", "memory-cabinet", "vault"],
+}
+
+
+def _bricks_for_mode(mode: str) -> List[str]:
+    """按出包模式返回积木集合（内置写死内核，不打包）。"""
+    if mode == "full":
+        return BRICK_TIERS["preset"] + BRICK_TIERS["ondemand"]
+    if mode == "base":
+        return list(BRICK_TIERS["preset"])
+    raise ProduceError(f"未知出包模式：{mode!r}（可选 full/base）")
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
             agents_root: Optional[Path] = None,
-            *, overwrite: bool = False, port: int = 18765) -> Path:
+            *, overwrite: bool = False, port: int = 18765,
+            mode: Optional[str] = None) -> Path:
     """把组装方案固化成独立 agent 包，返回产出目录。
 
     - 校验：agent 名合法、不重名（除非 overwrite）
     - 固化：agent.json + bricks/ 快照 + run.sh
     - 打包：生成 <name>.app 骨架（macOS）
+    - mode：None=按 plan.order；"full"=预置+按需全打包；"base"=仅预置
     """
     name = meta.name.strip()
     if not name or "/" in name or "\\" in name or name in (".", ".."):
@@ -66,9 +89,10 @@ def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
     if out_dir.exists() and not overwrite:
         raise ProduceError(f"agent 已存在：{out_dir}（用 overwrite=True 覆盖）")
 
+    order = _bricks_for_mode(mode) if mode else list(plan.order)
     vault = Path(vault_root)
     # 1) 校验选中积木的 brick.json 都在
-    for brick_name in plan.order:
+    for brick_name in order:
         manifest = _find_manifest(vault, brick_name)
         if manifest is None:
             raise ProduceError(f"积木 {brick_name} 的 brick.json 缺失")
@@ -80,7 +104,7 @@ def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
     bricks_dir.mkdir(parents=True)
 
     # 3) 复制积木快照
-    for brick_name in plan.order:
+    for brick_name in order:
         manifest = _find_manifest(vault, brick_name)
         shutil.copy2(manifest, bricks_dir / f"{brick_name}.brick.json")
 
@@ -94,9 +118,10 @@ def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
         "runtime": meta.runtime,
         "entry": meta.entry,
         "produced_at": _now_iso(),
+        "mode": mode or "plan",
         "assembly": {
-            "order": plan.order,
-            "resources_total": plan.resources_total,
+            "order": order,
+            "resources_total": plan.resources_total if not mode else len(order),
         },
     }
     (out_dir / "agent.json").write_text(

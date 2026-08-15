@@ -230,6 +230,44 @@ class IpcServer:
         self._daemon: Optional[Daemon] = None
         self._sock: Optional[socket.socket] = None
         self._thread: Optional[threading.Thread] = None
+        # 积木激活：启动时扫描 home/bricks 按形态激活注册进内核（P4 动态激活层）
+        self._brick_states: Dict[str, dict] = {}
+        self._activate_bricks()
+        # 未配置引擎提示（不阻塞启动；聊天请求会抛 NoEngineConfigured）
+        eng = self.config.engine
+        if not (eng.api_url and eng.api_key) and not eng.local_model:
+            logger.info("引擎未配置：请打开安装引导 http://127.0.0.1:18766 完成配置")
+
+    def _activate_bricks(self) -> None:
+        """启动时扫描 home/bricks 下各积木，按形态激活注册进内核。
+
+        积木数非 0 才激活；单个积木失败不拖死启动（故障域隔离）。
+        """
+        from ..brick_runtime import build_brick
+        bricks_root = self.config.home / "bricks"
+        if not bricks_root.is_dir():
+            return
+        for brick_dir in sorted(bricks_root.iterdir()):
+            manifest = brick_dir / "brick.json"
+            if not manifest.is_file():
+                continue
+            try:
+                raw = json.loads(manifest.read_text(encoding="utf-8"))
+                brick = build_brick(
+                    raw,
+                    skills_registry=self.skills,
+                    tool_registry=self.tools,
+                    home=self.config.home,
+                )
+                result = brick.activate()
+                self._brick_states[brick.name] = {
+                    "ok": result.ok,
+                    "error": result.error,
+                    "type": type(brick).__name__,
+                }
+            except Exception as e:  # noqa: BLE001 —— 故障域隔离，不拖死启动
+                self._brick_states[brick_dir.name] = {
+                    "ok": False, "error": str(e), "type": "unknown"}
 
     # ----- 引擎构建（延迟，遵循零外连红线）-----
     def _cached_local_engine(self, model: Optional[str]):
