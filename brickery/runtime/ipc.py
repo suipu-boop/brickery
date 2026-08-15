@@ -2541,7 +2541,12 @@ def main(argv: Optional[list] = None) -> int:
                 srv.stop()
                 os._exit(0)
 
-    threading.Thread(target=_watchdog, daemon=True).start()
+    # launcher 双击启动场景：IPC 作为独立服务存活，不随 launcher 退出自杀。
+    # launcher 启动 IPC 时设置 BRICKERY_NO_WATCHDOG=1（launcher 只是启动器，
+    # 退出后 IPC 被 reparent，ppid 变化会误触发自杀）。Swift 宿主托管路径
+    # 不设该变量，watchdog 照常生效（宿主退出 → 清理子进程）。
+    if os.environ.get("BRICKERY_NO_WATCHDOG") != "1":
+        threading.Thread(target=_watchdog, daemon=True).start()
 
     def _sig_handler(signum, frame):
         # 先停网关连接器（飞书等），再停引擎二进制，最后停 IPC 服务

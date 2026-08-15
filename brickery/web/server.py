@@ -126,10 +126,14 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             author=str(body.get("author") or ""),
         )
         try:
+            port = int(body.get("port") or 18765)
+        except (TypeError, ValueError):
+            port = 18765
+        try:
             asm = load_vault(self.vault_root)
             plan = asm.assemble(selected)
             out = produce(plan, self.vault_root, meta,
-                          agents_root=self.agents_root)
+                          agents_root=self.agents_root, port=port)
         except (AssemblyError, ProduceError) as e:
             self._json({"ok": False, "error": str(e)})
             return
