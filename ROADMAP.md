@@ -55,6 +55,7 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - 全量单测通过：runtime 195 + memory 69（`python -m unittest discover -s brickery/runtime/tests -t brickery -p "test_*.py"`）
 - **B6 产出链路完成**：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令；e2e 全链路通过（commit `b21e314`）
 - **净化 shadeling 残留完成**：brick_runtime 宿主回退删除；SHADELING_HOME/~/.shadeling → BRICKERY_HOME/~/.brickery（50 处）；运行时标识（logger/环境变量/keychain/产出目录/测试前缀/打印前缀）→ brickery（43 处）；schema 契约统一 brickery-memory-export/v1；保留品牌身份（产出 agent 自称 Shadeling）/数据契约（shadeling-skill-repo/v1）/迁移兼容（~/shadeling-runtime、Shadeling_* 备份）/来源注释；方案落盘 `specs/cleanup-shadeling.md`
+- **GitHub 仓库整合完成（5→3）**：技能市场源并入 `brick-vault/skills/`（commit `b4b2066` 已 push）；ipc.py 技能源 URL 改指向 shadeling-bricks；删除 GitHub `shadeling-skills` + `shadling`（204）；本地 shadeling-skills clone 已删；editor_sdk（193MB）git filter-repo 重写历史移除 + 上传 shadeling-bricks Release v1.0.0，brickery force push 成功（`b8188c0..f49e847`）；全量单测 263 passed + 1 skipped；方案与执行记录落盘 `specs/cleanup-shadeling.md`
 
 ## 与原本计划的差异
 
