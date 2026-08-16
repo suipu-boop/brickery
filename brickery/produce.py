@@ -46,9 +46,7 @@ class ProduceError(ValueError):
 
 # 积木分层（用户拍板）：内置=写死内核不打包；预置/按需=可打包
 BRICK_TIERS = {
-    "builtin": ["engine-local", "engine-api", "memory-core", "memory-portrait",
-                "memory-fixed-core", "memory-cluster", "memory-cooccurrence",
-                "memory-suggest", "memory-consolidation", "memory-smol"],
+    "builtin": ["engine-local", "engine-api"],
     "preset": ["docwrite", "scheduler", "rules", "doctor", "backup-restore",
                "meeting-minutes", "visualize"],
     "ondemand": ["feishu", "telegram", "ax", "browser", "high-config-doc",

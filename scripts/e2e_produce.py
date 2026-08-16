@@ -20,7 +20,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--vault", default=str(Path.home() / "Dev" / "brick-vault"))
     ap.add_argument("--name", default="e2e-demo")
-    ap.add_argument("--bricks", default="ax,visualize,docwrite,memory-core",
+    ap.add_argument("--bricks", default="ax,visualize,docwrite",
                     help="逗号分隔的积木名")
     args = ap.parse_args()
 
