@@ -148,6 +148,15 @@ PAGE_HTML = """<!DOCTYPE html>
     <button class="btn ghost" id="verifyBtn">验证配置</button>
   </div>
 
+  <div class="card">
+    <h2>第二步 · 数据与备份</h2>
+    <label>备份文件夹（一键备份保存位置，可自选）</label>
+    <input id="backup_dir" placeholder="如 ~/Documents/Brickery/Backups">
+    <label>产出文件夹（文档/表格等产出文件存放位置，可自选）</label>
+    <input id="output_dir" placeholder="如 ~/Documents/Brickery/Output">
+    <div class="status" id="dirStatus"></div>
+  </div>
+
   <div class="foot">随朴引擎 · 配置写入 config.json · 不硬编码任何第三方推理地址</div>
 </div>
 
@@ -248,6 +257,8 @@ $("saveBtn").onclick = async () => {
     api_model: $("api_model").value.trim(),
     api_name: $("api_name").value.trim(),
     local_model: $("local_model").value.trim(),
+    backup_dir: $("backup_dir").value.trim(),
+    output_dir: $("output_dir").value.trim(),
   };
   const r = await jpost("/api/config", body);
   if (r.ok) setStatus(st, "配置已保存 ✓", true);
@@ -392,6 +403,10 @@ class _Handler(BaseHTTPRequestHandler):
         eng.api_model = data.get("api_model", eng.api_model)
         eng.api_name = data.get("api_name", eng.api_name)
         eng.local_model = data.get("local_model", eng.local_model)
+        if data.get("backup_dir"):
+            cfg.backup_dir = Path(data["backup_dir"]).expanduser()
+        if data.get("output_dir"):
+            cfg.output_dir = Path(data["output_dir"]).expanduser()
         try:
             cfg.save()
             self._send(200, {"ok": True})

@@ -17,6 +17,7 @@ import json
 import os
 import shutil
 import stat
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -212,65 +213,20 @@ def _bundle_app(out_dir: Path, meta: ProduceMeta, *, port: int = 18765) -> None:
     <key>CFBundleIdentifier</key><string>dev.brickery.{meta.name}</string>
     <key>CFBundleVersion</key><string>{meta.version}</string>
     <key>CFBundleShortVersionString</key><string>{meta.version}</string>
-    <key>CFBundleExecutable</key><string>launcher</string>
+    <key>CFBundleExecutable</key><string>BrickeryApp</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSMinimumSystemVersion</key><string>12.0</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key><true/>
+    </dict>
 </dict>
 </plist>
 """
     (contents / "Info.plist").write_text(plist, encoding="utf-8")
 
-    launcher = f"""#!/bin/bash
-# {meta.name} launcher —— 自包含启动：数据目录在 ~/Library/Application Support/{meta.name}/
-# 不依赖包外任何文件（run.sh 仅开发态使用）。
-set -euo pipefail
-# launcher 位于 Contents/MacOS/，上两级即 .app 根目录
-APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-RESOURCES="$APP_DIR/Contents/Resources"
-RUNTIME_DIR="$RESOURCES/brickery-runtime"
-DATA_DIR="$HOME/Library/Application Support/{meta.name}"
-STATUS_PAGE="$RESOURCES/status.html"
-GUIDE_URL="http://127.0.0.1:18766/"
-CHAT_URL="http://127.0.0.1:18767/"
-if [ ! -d "$RUNTIME_DIR" ]; then
-  echo "[{meta.name}] 错误：未找到打包运行时（$RUNTIME_DIR）" >&2
-  exit 1
-fi
-mkdir -p "$DATA_DIR"
-export PYTHONPATH="$RUNTIME_DIR"
-# launcher 只是启动器：IPC 作为独立服务存活，不随 launcher 退出自杀
-# （ipc.py 的父进程 watchdog 在 BRICKERY_NO_WATCHDOG=1 时跳过）
-export BRICKERY_NO_WATCHDOG=1
-# 已在运行（引导页或聊天页端口占用）→ 按是否已配置打开对应页，不重复启动
-if lsof -iTCP:18766 -sTCP:LISTEN >/dev/null 2>&1 || lsof -iTCP:18767 -sTCP:LISTEN >/dev/null 2>&1; then
-  if [ -f "$DATA_DIR/config.json" ]; then
-    open "$CHAT_URL" 2>/dev/null || true
-  else
-    open "$GUIDE_URL" 2>/dev/null || true
-  fi
-  exit 0
-fi
-# 后台启动 IPC 服务，launcher 立即退出（避免 Dock 图标一直弹跳）
-nohup python3 -m brickery.runtime.ipc --home "$DATA_DIR" --app-resources "$RESOURCES" \\
-  > "$DATA_DIR/ipc.log" 2>&1 &
-# 后台启动安装引导（底座 setup_wizard，读 BRICKERY_HOME 下的 config.json）
-BRICKERY_HOME="$DATA_DIR" nohup python3 -m brickery.runtime.setup_wizard \\
-  > "$DATA_DIR/setup_wizard.log" 2>&1 &
-# 后台启动聊天界面（复用底座 chat_ui）
-BRICKERY_HOME="$DATA_DIR" nohup python3 -m brickery.runtime.chat_ui \\
-  > "$DATA_DIR/chat_ui.log" 2>&1 &
-# 首次启动（无 config.json）→ 打开安装引导页；已配置 → 打开聊天页
-sleep 2
-if [ -f "$DATA_DIR/config.json" ]; then
-  open "$CHAT_URL" 2>/dev/null || true
-else
-  open "$GUIDE_URL" 2>/dev/null || true
-fi
-exit 0
-"""
-    launcher_path = macos / "launcher"
-    launcher_path.write_text(launcher, encoding="utf-8")
-    launcher_path.chmod(launcher_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    # 编译原生壳（NSApplication + WKWebView，内嵌渲染底座 web 界面）
+    _bundle_native_shell(macos)
 
     # 状态页：双击后浏览器打开，给用户可见反馈（工坊蓝图风，与 web/index.html 一致）
     (resources / "status.html").write_text(
@@ -282,6 +238,28 @@ exit 0
     # 复制装配清单与积木快照进 Resources/
     shutil.copy2(out_dir / "agent.json", resources / "agent.json")
     shutil.copytree(out_dir / "bricks", resources / "bricks")
+
+
+def _bundle_native_shell(macos: Path) -> None:
+    """编译原生壳（NSApplication + WKWebView）并放入 Contents/MacOS/。
+
+    壳源码在 brickery/app/（Swift Package，命名 BrickeryApp，无第三方依赖）。
+    编译产物 .build/release/BrickeryApp 复制为 Contents/MacOS/BrickeryApp。
+    """
+    app_src = Path(__file__).resolve().parents[1] / "app"
+    if not (app_src / "Package.swift").exists():
+        raise ProduceError(f"未找到原生壳工程：{app_src}")
+    build = subprocess.run(
+        ["swift", "build", "-c", "release", "--package-path", str(app_src)],
+        capture_output=True, text=True)
+    if build.returncode != 0:
+        raise ProduceError(f"原生壳编译失败：{build.stderr[-800:]}")
+    binary = app_src / ".build" / "release" / "BrickeryApp"
+    if not binary.exists():
+        raise ProduceError(f"原生壳产物缺失：{binary}")
+    dest = macos / "BrickeryApp"
+    shutil.copy2(binary, dest)
+    dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def _status_page(name: str, version: str, port: int) -> str:

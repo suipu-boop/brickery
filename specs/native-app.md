@@ -11,6 +11,9 @@ AIGC:
 
 # 产出 agent 原生界面：搬入 Shadeling 原生 SwiftUI app（积木平台组装逻辑下）
 
+> **已作废（2026-08-16）**：用户改走「独立 app + 内嵌 web（WKWebView）」形态，
+> 见 specs/native-webview.md。本文件保留供追溯。
+
 > 2026-08-16 随朴 落盘。回应质疑：对话页面为何是 web 而非独立 app 内原生界面。
 > 根因：brickery 迁移时只搬了 Python 内核，未搬 Shadeling 原生 SwiftUI app，界面用 web 复刻形态。
 

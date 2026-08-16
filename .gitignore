@@ -17,3 +17,6 @@ build/
 .idea/
 .vscode/
 brickery/fixtures/skill_repo/bin/editor_sdk
+
+# SwiftPM build artifacts
+app/.build/
