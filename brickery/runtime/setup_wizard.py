@@ -372,8 +372,11 @@ def _verify_api(cfg: _config.Config) -> Dict:
         "messages": [{"role": "user", "content": "ping"}],
         "max_tokens": 1,
     }
+    url = eng.api_url.rstrip("/")
+    if not url.endswith("/chat/completions"):
+        url += "/chat/completions"
     req = urllib.request.Request(
-        eng.api_url,
+        url,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
