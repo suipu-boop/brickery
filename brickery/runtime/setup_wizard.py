@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import threading
 import urllib.request
 import urllib.error
@@ -110,6 +111,21 @@ PAGE_HTML = """<!DOCTYPE html>
   .tag.installed { background: rgba(63,185,80,0.15); color: var(--ok); border: 1px solid var(--ok); }
   .tag.dl { background: rgba(57,197,207,0.15); color: var(--cyan); border: 1px solid var(--cyan); }
   .foot { color: var(--dim); font-size: 11px; text-align: center; margin-top: 30px; }
+  .steps { display: flex; gap: 8px; margin-bottom: 18px; }
+  .step-ind {
+    flex: 1; text-align: center; padding: 8px 10px; border-radius: 6px;
+    background: var(--bg2); color: var(--dim); font-size: 12px; border: 1px solid var(--line);
+  }
+  .step-ind.active { background: rgba(57,197,207,0.12); color: var(--cyan); border-color: var(--cyan); }
+  .nav { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+  .nav .btn { min-width: 96px; }
+  .pickrow { display: flex; gap: 8px; align-items: center; }
+  .pickrow input { flex: 1; }
+  .pick { white-space: nowrap; }
+  .summary { background: var(--bg2); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; margin-top: 6px; }
+  .sum-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13px; }
+  .sum-row span { color: var(--dim); }
+  .sum-row b { font-weight: 600; word-break: break-all; text-align: right; }
 </style>
 </head>
 <body>
@@ -119,7 +135,13 @@ PAGE_HTML = """<!DOCTYPE html>
     <div class="sub">推理引擎配置向导 — API 首选 / 本地 GGUF 兜底 · 配置仅存本机</div>
   </header>
 
-  <div class="card">
+  <div class="steps">
+    <div class="step-ind active" data-step="1">1 · 推理后端</div>
+    <div class="step-ind" data-step="2">2 · 数据与备份</div>
+    <div class="step-ind" data-step="3">3 · 完成</div>
+  </div>
+
+  <div class="card step-panel" id="step1">
     <h2>第一步 · 选择推理后端</h2>
     <label>后端模式</label>
     <select id="backend">
@@ -143,18 +165,40 @@ PAGE_HTML = """<!DOCTYPE html>
       <input id="local_model" placeholder="如 qwen3.5-4b-q4.gguf">
       <div id="modelList" style="margin-top:12px"></div>
     </div>
-    <div class="status" id="saveStatus"></div>
-    <button class="btn" id="saveBtn">保存配置</button>
-    <button class="btn ghost" id="verifyBtn">验证配置</button>
+    <div class="nav">
+      <button class="btn" onclick="goStep(2)">下一步</button>
+    </div>
   </div>
 
-  <div class="card">
+  <div class="card step-panel" id="step2" style="display:none">
     <h2>第二步 · 数据与备份</h2>
     <label>备份文件夹（一键备份保存位置，可自选）</label>
-    <input id="backup_dir" placeholder="如 ~/Documents/Brickery/Backups">
+    <div class="pickrow">
+      <input id="backup_dir" placeholder="如 ~/Documents/Brickery/Backups">
+      <button class="btn ghost pick" onclick="pickFolder('backup_dir')">选择…</button>
+    </div>
     <label>产出文件夹（文档/表格等产出文件存放位置，可自选）</label>
-    <input id="output_dir" placeholder="如 ~/Documents/Brickery/Output">
+    <div class="pickrow">
+      <input id="output_dir" placeholder="如 ~/Documents/Brickery/Output">
+      <button class="btn ghost pick" onclick="pickFolder('output_dir')">选择…</button>
+    </div>
     <div class="status" id="dirStatus"></div>
+    <div class="nav">
+      <button class="btn ghost" onclick="goStep(1)">上一步</button>
+      <button class="btn" onclick="goStep(3)">下一步</button>
+    </div>
+  </div>
+
+  <div class="card step-panel" id="step3" style="display:none">
+    <h2>第三步 · 完成</h2>
+    <p class="sub">确认以下配置后保存。配置仅存本机。</p>
+    <div class="summary" id="summary"></div>
+    <div class="status" id="saveStatus"></div>
+    <div class="nav">
+      <button class="btn ghost" onclick="goStep(2)">上一步</button>
+      <button class="btn" id="saveBtn">保存配置</button>
+      <button class="btn ghost" id="verifyBtn">验证配置</button>
+    </div>
   </div>
 
   <div class="foot">随朴引擎 · 配置写入 config.json · 不硬编码任何第三方推理地址</div>
@@ -248,6 +292,39 @@ async function downloadModel(id) {
 }
 
 $("backend").onchange = toggleBackend;
+
+function goStep(n) {
+  [1, 2, 3].forEach(i => {
+    $("step" + i).style.display = i === n ? "" : "none";
+    document.querySelector('.step-ind[data-step="' + i + '"]').classList.toggle("active", i === n);
+  });
+  if (n === 3) renderSummary();
+}
+
+function renderSummary() {
+  const rows = [
+    ["后端模式", $("backend").value === "api" ? "API" : "本地 GGUF"],
+    ["服务商", $("api_name").value || "—"],
+    ["API URL", $("api_url").value || "—"],
+    ["模型", $("api_model").value || $("local_model").value || "—"],
+    ["备份文件夹", $("backup_dir").value || "—"],
+    ["产出文件夹", $("output_dir").value || "—"],
+  ];
+  $("summary").innerHTML = rows.map(([k, v]) =>
+    '<div class="sum-row"><span>' + k + '</span><b>' + v + '</b></div>').join("");
+}
+
+async function pickFolder(inputId) {
+  const st = $("dirStatus");
+  if (st) setStatus(st, "请在弹出的窗口中选择文件夹...", true);
+  const r = await jpost("/api/pick_folder", {});
+  if (r.ok) {
+    $(inputId).value = r.path;
+    if (st) setStatus(st, "已选择：" + r.path, true);
+  } else if (st) {
+    setStatus(st, "未选择：" + (r.error || "已取消"), false);
+  }
+}
 
 $("saveBtn").onclick = async () => {
   const st = $("saveStatus");
@@ -377,6 +454,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._verify()
         elif self.path == "/api/download":
             self._download(data)
+        elif self.path == "/api/pick_folder":
+            self._pick_folder()
         else:
             self._send(404, {"ok": False, "error": "not found"})
 
@@ -430,6 +509,19 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             result = _catalog.start_download(mid, cfg.models_root)
             self._send(200, {"ok": True, "detail": result})
+        except Exception as e:  # noqa: BLE001
+            self._send(500, {"ok": False, "error": str(e)})
+
+    def _pick_folder(self) -> None:
+        """调 macOS 原生文件夹选择器（osascript choose folder），返回选中路径。"""
+        try:
+            r = subprocess.run(
+                ["osascript", "-e", 'POSIX path of (choose folder with prompt "选择文件夹")'],
+                capture_output=True, text=True, timeout=120)
+            if r.returncode == 0 and r.stdout.strip():
+                self._send(200, {"ok": True, "path": r.stdout.strip()})
+            else:
+                self._send(200, {"ok": False, "error": (r.stderr or "已取消").strip()})
         except Exception as e:  # noqa: BLE001
             self._send(500, {"ok": False, "error": str(e)})
 
