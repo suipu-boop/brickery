@@ -35,6 +35,8 @@ class Brick:
     requires: List[str] = field(default_factory=list)
     conflicts: List[str] = field(default_factory=list)
     resources: dict = field(default_factory=dict)
+    # ---- 自包含实现文件（files 落盘清单，src=积木目录内相对路径，dest=相对 home） ----
+    files: List[dict] = field(default_factory=list)
     # ---- 展示字段（不参与组装） ----
     summary: str = ""
     description: str = ""
@@ -53,6 +55,7 @@ class Brick:
             requires=[str(r) for r in (comp.get("requires") or [])],
             conflicts=[str(c) for c in (comp.get("conflicts_with") or [])],
             resources=dict(raw.get("resources") or {}),
+            files=list(raw.get("files") or []),
             summary=str(raw.get("summary") or "").strip(),
             description=str(raw.get("description") or "").strip(),
             category=str(raw.get("category") or "").strip(),
@@ -68,9 +71,15 @@ class AssemblyPlan:
 
     order: List[str]
     resources_total: dict = field(default_factory=dict)
+    # name -> files 落盘清单（自包含实现文件，供 produce / 运行时落盘）
+    files: Dict[str, List[dict]] = field(default_factory=dict)
 
     def as_dict(self) -> dict:
-        return {"order": self.order, "resources_total": self.resources_total}
+        return {
+            "order": self.order,
+            "resources_total": self.resources_total,
+            "files": self.files,
+        }
 
 
 class Assembler:
@@ -94,7 +103,8 @@ class Assembler:
         order = self._resolve(selected)
         self._check_conflicts(order)
         total = self._check_resources(order)
-        return AssemblyPlan(order=order, resources_total=total)
+        files = {n: list(self.bricks[n].files) for n in order if self.bricks[n].files}
+        return AssemblyPlan(order=order, resources_total=total, files=files)
 
     # ---- 依赖解析（含传递依赖） ----
     def _resolve(self, selected: List[str]) -> List[str]:

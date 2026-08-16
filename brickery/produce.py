@@ -102,10 +102,18 @@ def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
     bricks_dir = out_dir / "bricks"
     bricks_dir.mkdir(parents=True)
 
-    # 3) 复制积木快照
+    # 3) 复制积木快照（自包含积木复制整个目录，含实现文件；其余单文件快照）
     for brick_name in order:
         manifest = _find_manifest(vault, brick_name)
-        shutil.copy2(manifest, bricks_dir / f"{brick_name}.brick.json")
+        brick_files = (plan.files or {}).get(brick_name) or []
+        if brick_files:
+            src_dir = manifest.parent
+            dst_dir = bricks_dir / brick_name
+            shutil.copytree(
+                src_dir, dst_dir,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        else:
+            shutil.copy2(manifest, bricks_dir / f"{brick_name}.brick.json")
 
     # 4) 写装配清单
     manifest_data = {
@@ -130,7 +138,7 @@ def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
     _write_run_script(out_dir, meta)
 
     # 6) 打包 .app 骨架（macOS）
-    _bundle_app(out_dir, meta, port=port)
+    _bundle_app(out_dir, meta, port=port, files=plan.files)
 
     return out_dir
 
@@ -189,7 +197,8 @@ fi
     run_sh.chmod(run_sh.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _bundle_app(out_dir: Path, meta: ProduceMeta, *, port: int = 18765) -> None:
+def _bundle_app(out_dir: Path, meta: ProduceMeta, *, port: int = 18765,
+                files: Optional[Dict[str, List[dict]]] = None) -> None:
     """生成 macOS .app（可打包 .dmg 分发）。
 
     结构：Contents/Info.plist + MacOS/launcher + Resources/brickery-runtime/
@@ -238,6 +247,9 @@ def _bundle_app(out_dir: Path, meta: ProduceMeta, *, port: int = 18765) -> None:
     # 复制装配清单与积木快照进 Resources/
     shutil.copy2(out_dir / "agent.json", resources / "agent.json")
     shutil.copytree(out_dir / "bricks", resources / "bricks")
+
+    # 自包含积木实现文件落盘进打包 runtime（connectors / bin 等）
+    _install_brick_files(resources, files or {})
 
 
 def _bundle_native_shell(macos: Path) -> None:
@@ -362,6 +374,31 @@ def _bundle_runtime(resources: Path) -> None:
         src, dst,
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "tests", "fixtures", "web"),
     )
+
+
+def _install_brick_files(resources: Path, files: Dict[str, List[dict]]) -> None:
+    """把自包含积木的实现文件落盘进打包 runtime（幂等）。
+
+    dest 语义：以 `runtime/` 开头 → 相对打包 brickery 包（brickery-runtime/
+    brickery/，如 runtime/connectors/feishu.py，供 ipc 相对导入拉起）；其余 →
+    相对打包 runtime 根（brickery-runtime/，如 bin/ax/axctl）。源文件在
+    Resources/bricks/<name>/ 内（produce 第 3 步已复制整个积木目录）。保留可执行位。
+    """
+    runtime_root = resources / "brickery-runtime"
+    brick_pkg = runtime_root / "brickery"
+    for name, flist in (files or {}).items():
+        brick_dir = resources / "bricks" / name
+        for f in flist:
+            src = brick_dir / str(f.get("src") or "")
+            dest_raw = str(f.get("dest") or "")
+            dest = (brick_pkg / dest_raw) if dest_raw.startswith("runtime/") \
+                else (runtime_root / dest_raw)
+            if not src.is_file():
+                raise ProduceError(f"积木 {name} 实现文件缺失：{src}")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            if src.stat().st_mode & 0o111:  # 保留可执行位
+                dest.chmod(dest.stat().st_mode | 0o111)
 
 
 def list_agents(agents_root: Optional[Path] = None) -> List[dict]:

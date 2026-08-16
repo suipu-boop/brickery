@@ -21,6 +21,7 @@ BinaryBrick 待 DocWritePro 等二进制引擎积木化时使用。四型适配�
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -688,6 +689,7 @@ class BrickRuntime:
         self.engine_factory = engine_factory
         self.index_file = index_file
         self.bricks: Dict[str, BrickLike] = {}
+        self._files: Dict[str, List[dict]] = {}
 
     def load(self) -> Dict[str, BrickLike]:
         """读 index.json + 各 brick.json，按形态构造适配器。"""
@@ -696,6 +698,7 @@ class BrickRuntime:
             raise FileNotFoundError(f"清单不存在：{index_path}")
         raw_index = json.loads(index_path.read_text(encoding="utf-8"))
         self.bricks = {}
+        self._files = {}
         for entry in raw_index.get("bricks") or []:
             name = entry.get("name")
             manifest_dir = self.vault_root / (entry.get("path") or f"bricks/{name}/")
@@ -703,6 +706,7 @@ class BrickRuntime:
             if not manifest_path.exists():
                 raise FileNotFoundError(f"积木清单缺失：{manifest_path}")
             raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self._files[str(raw.get("name") or name)] = list(raw.get("files") or [])
             self.bricks[str(raw.get("name") or name)] = build_brick(
                 raw, self.skills_registry, self.connector_factory,
                 self.tool_registry, self.home,
@@ -711,6 +715,49 @@ class BrickRuntime:
                 memory_host=self.memory_host,
                 engine_factory=self.engine_factory)
         return self.bricks
+
+    def install_files(self, order: List[str]) -> Dict[str, BrickResult]:
+        """按 files 声明把积木实现文件落盘（幂等）。
+
+        dest 语义：以 `runtime/` 开头 → 相对当前 brickery 包根（如
+        runtime/connectors/feishu.py，供 ipc 相对导入拉起）；其余 → 相对 home
+        根（默认 runtime.paths.get_home()，即 ~/.brickery，如 bin/ax/axctl）。
+        源文件在 vault 积木目录内（src 相对积木目录）。已存在则覆盖。
+        """
+        results: Dict[str, BrickResult] = {}
+        home = Path(self.home) if self.home else None
+        if home is None:
+            paths = _host_import("paths", "get_home")
+            home = paths.get_home() if paths else Path.home() / ".brickery"
+        brick_pkg = Path(__file__).resolve().parents[1]  # brickery 包根
+        for name in order:
+            files = self._files.get(name) or []
+            if not files:
+                results[name] = BrickResult(ok=True, data={"note": "无 files 声明"})
+                continue
+            brick_dir = self.vault_root / "bricks" / name
+            if not brick_dir.is_dir():
+                results[name] = BrickResult(ok=False, error=f"积木目录缺失：{brick_dir}")
+                continue
+            installed: List[str] = []
+            failed = False
+            for f in files:
+                src = brick_dir / str(f.get("src") or "")
+                dest_raw = str(f.get("dest") or "")
+                dest = (brick_pkg / dest_raw) if dest_raw.startswith("runtime/") \
+                    else (home / dest_raw)
+                if not src.is_file():
+                    results[name] = BrickResult(ok=False, error=f"源文件缺失：{src}")
+                    failed = True
+                    break
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest)
+                if src.stat().st_mode & 0o111:  # 保留可执行位
+                    dest.chmod(dest.stat().st_mode | 0o111)
+                installed.append(str(dest))
+            if not failed:
+                results[name] = BrickResult(ok=True, data={"installed": installed})
+        return results
 
     def activate(self, order: List[str]) -> Dict[str, BrickResult]:
         """按拓扑序逐个 activate，返回逐积木结果。"""
