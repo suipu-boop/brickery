@@ -30,14 +30,14 @@ PORT = 18766
 
 # 八家 API 预设模板：url 为可编辑默认值，key 必须用户手填
 API_PRESETS: List[Dict] = [
-    {"name": "火山方舟", "url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions", "model": "doubao-1-5-pro-32k", "key": ""},
-    {"name": "腾讯混元", "url": "https://api.hunyuan.cloud.tencent.com/v1/chat/completions", "model": "hunyuan-turbo", "key": ""},
-    {"name": "DeepSeek", "url": "https://api.deepseek.com/v1/chat/completions", "model": "deepseek-chat", "key": ""},
-    {"name": "通义千问", "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "model": "qwen-plus", "key": ""},
-    {"name": "智谱 GLM", "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "model": "glm-4-plus", "key": ""},
-    {"name": "Kimi", "url": "https://api.moonshot.cn/v1/chat/completions", "model": "moonshot-v1-8k", "key": ""},
-    {"name": "OpenAI", "url": "https://api.openai.com/v1/chat/completions", "model": "gpt-4o-mini", "key": ""},
-    {"name": "xAI", "url": "https://api.x.ai/v1/chat/completions", "model": "grok-2-latest", "key": ""},
+    {"name": "火山方舟", "url": "https://ark.cn-beijing.volces.com/api/v3", "model": "doubao-seed-2.1-pro-260628", "key": ""},
+    {"name": "腾讯混元", "url": "https://api.hunyuan.cloud.tencent.com/v1", "model": "hunyuan-turbos-latest", "key": ""},
+    {"name": "DeepSeek", "url": "https://api.deepseek.com/v1", "model": "deepseek-v4-flash", "key": ""},
+    {"name": "通义千问", "url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen3.8-max", "key": ""},
+    {"name": "智谱 GLM", "url": "https://open.bigmodel.cn/api/paas/v4", "model": "glm-5.2", "key": ""},
+    {"name": "Kimi", "url": "https://api.moonshot.cn/v1", "model": "kimi-k3", "key": ""},
+    {"name": "OpenAI", "url": "https://api.openai.com/v1", "model": "gpt-5.5", "key": ""},
+    {"name": "xAI", "url": "https://api.x.ai/v1", "model": "grok-4.3", "key": ""},
 ]
 
 PAGE_HTML = """<!DOCTYPE html>
@@ -193,11 +193,12 @@ async function init() {
   const cfg = await jget("/api/config");
   if (cfg.ok) {
     $("backend").value = cfg.config.backend || "api";
-    $("api_url").value = cfg.config.api_url || "";
-    $("api_key").value = cfg.config.api_key || "";
-    $("api_model").value = cfg.config.api_model || "";
-    $("api_name").value = cfg.config.api_name || "";
-    $("local_model").value = cfg.config.local_model || "";
+    // 仅当 config 已有值时覆盖预设填充，避免空值清掉预设默认（如火山 url）
+    if (cfg.config.api_url) $("api_url").value = cfg.config.api_url;
+    if (cfg.config.api_key) $("api_key").value = cfg.config.api_key;
+    if (cfg.config.api_model) $("api_model").value = cfg.config.api_model;
+    if (cfg.config.api_name) $("api_name").value = cfg.config.api_name;
+    if (cfg.config.local_model) $("local_model").value = cfg.config.local_model;
     toggleBackend();
   }
   loadModels();
