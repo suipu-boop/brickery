@@ -171,7 +171,17 @@ if [ -z "$APP_DIR" ] || [ ! -d "$RUNTIME_DIR" ]; then
 fi
 echo "[{meta.name}] 启动（独立运行时）"
 export PYTHONPATH="$RUNTIME_DIR"
-exec python3 -m brickery.runtime.ipc --home "$AGENT_DIR"
+export BRICKERY_NO_WATCHDOG=1
+# 后台拉起 IPC、安装引导与聊天界面（复用底座），按是否已配置打开对应页
+nohup python3 -m brickery.runtime.ipc --home "$AGENT_DIR" > "$AGENT_DIR/ipc.log" 2>&1 &
+BRICKERY_HOME="$AGENT_DIR" nohup python3 -m brickery.runtime.setup_wizard > "$AGENT_DIR/setup_wizard.log" 2>&1 &
+BRICKERY_HOME="$AGENT_DIR" nohup python3 -m brickery.runtime.chat_ui > "$AGENT_DIR/chat_ui.log" 2>&1 &
+sleep 2
+if [ -f "$AGENT_DIR/config.json" ]; then
+  open "http://127.0.0.1:18767/" 2>/dev/null || true
+else
+  open "http://127.0.0.1:18766/" 2>/dev/null || true
+fi
 """
     run_sh = out_dir / "run.sh"
     run_sh.write_text(script, encoding="utf-8")
@@ -220,26 +230,42 @@ RESOURCES="$APP_DIR/Contents/Resources"
 RUNTIME_DIR="$RESOURCES/brickery-runtime"
 DATA_DIR="$HOME/Library/Application Support/{meta.name}"
 STATUS_PAGE="$RESOURCES/status.html"
+GUIDE_URL="http://127.0.0.1:18766/"
+CHAT_URL="http://127.0.0.1:18767/"
 if [ ! -d "$RUNTIME_DIR" ]; then
   echo "[{meta.name}] 错误：未找到打包运行时（$RUNTIME_DIR）" >&2
   exit 1
 fi
 mkdir -p "$DATA_DIR"
-# 已在运行（端口占用）→ 直接打开状态页，不重复启动
-if lsof -iTCP:{port} -sTCP:LISTEN >/dev/null 2>&1; then
-  open "$STATUS_PAGE" 2>/dev/null || true
-  exit 0
-fi
 export PYTHONPATH="$RUNTIME_DIR"
 # launcher 只是启动器：IPC 作为独立服务存活，不随 launcher 退出自杀
 # （ipc.py 的父进程 watchdog 在 BRICKERY_NO_WATCHDOG=1 时跳过）
 export BRICKERY_NO_WATCHDOG=1
+# 已在运行（引导页或聊天页端口占用）→ 按是否已配置打开对应页，不重复启动
+if lsof -iTCP:18766 -sTCP:LISTEN >/dev/null 2>&1 || lsof -iTCP:18767 -sTCP:LISTEN >/dev/null 2>&1; then
+  if [ -f "$DATA_DIR/config.json" ]; then
+    open "$CHAT_URL" 2>/dev/null || true
+  else
+    open "$GUIDE_URL" 2>/dev/null || true
+  fi
+  exit 0
+fi
 # 后台启动 IPC 服务，launcher 立即退出（避免 Dock 图标一直弹跳）
 nohup python3 -m brickery.runtime.ipc --home "$DATA_DIR" --app-resources "$RESOURCES" \\
   > "$DATA_DIR/ipc.log" 2>&1 &
-# 等 IPC 起来后打开状态页，给用户可见反馈
+# 后台启动安装引导（底座 setup_wizard，读 BRICKERY_HOME 下的 config.json）
+BRICKERY_HOME="$DATA_DIR" nohup python3 -m brickery.runtime.setup_wizard \\
+  > "$DATA_DIR/setup_wizard.log" 2>&1 &
+# 后台启动聊天界面（复用底座 chat_ui）
+BRICKERY_HOME="$DATA_DIR" nohup python3 -m brickery.runtime.chat_ui \\
+  > "$DATA_DIR/chat_ui.log" 2>&1 &
+# 首次启动（无 config.json）→ 打开安装引导页；已配置 → 打开聊天页
 sleep 2
-open "$STATUS_PAGE" 2>/dev/null || true
+if [ -f "$DATA_DIR/config.json" ]; then
+  open "$CHAT_URL" 2>/dev/null || true
+else
+  open "$GUIDE_URL" 2>/dev/null || true
+fi
 exit 0
 """
     launcher_path = macos / "launcher"
