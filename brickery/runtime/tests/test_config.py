@@ -36,3 +36,20 @@ class TestConfig(RuntimeTestCase):
         cfg.save()
         r = load_config(home=self.home, models_root=self.models)
         self.assertEqual(r.engine.api_url, "https://user.example/x")
+
+    def test_memory_enabled_default_true(self):
+        # memory-* 积木开关：默认开可关（区别于 bricks_enabled 默认 False）
+        cfg = Config(home=self.home, models_root=self.models)
+        self.assertTrue(cfg.memory_enabled)
+
+    def test_memory_enabled_save_reload(self):
+        cfg = Config(home=self.home, models_root=self.models,
+                     memory_enabled=False)
+        cfg.save()
+        r = load_config(home=self.home, models_root=self.models)
+        self.assertFalse(r.memory_enabled)
+        # 未写该字段的旧配置 → 回退默认 True
+        (self.home / "config.json").write_text(
+            '{"engine": {"backend": "api"}}', encoding="utf-8")
+        r2 = load_config(home=self.home, models_root=self.models)
+        self.assertTrue(r2.memory_enabled)

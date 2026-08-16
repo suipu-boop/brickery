@@ -87,6 +87,7 @@ class Config:
     active_profile_id: str = "default"
     chat_model: str = ""                    # 会话栏选用的模型（空=后端默认；重启须恢复）
     bricks_enabled: bool = False            # P8 积木装配总开关（默认关；true 时装配引擎+记忆积木）
+    memory_enabled: bool = True             # 记忆系统开关（默认开；false 时记忆能力不装配）
 
     @property
     def config_file(self) -> Path:
@@ -127,6 +128,7 @@ class Config:
             "active_profile_id": self.active_profile_id,
             "chat_model": self.chat_model,
             "bricks_enabled": self.bricks_enabled,
+            "memory_enabled": self.memory_enabled,
         }
         self.config_file.write_text(json.dumps(data, ensure_ascii=False, indent=2),
                                     encoding="utf-8")
@@ -152,6 +154,7 @@ def load_config(home: Optional[Path] = None,
     open_session_context = True
     chat_model = ""
     bricks_enabled = False
+    memory_enabled = True
     backup_dir = paths.get_backup_dir()
     output_dir = paths.get_output_dir()
     profiles = []                      # 多模型预设（list[dict]）；空=首次运行，下方迁移兜底
@@ -179,6 +182,7 @@ def load_config(home: Optional[Path] = None,
             tools_enabled = raw.get("tools_enabled", True)
             skills_enabled = raw.get("skills_enabled", True)
             bricks_enabled = bool(raw.get("bricks_enabled", False))
+            memory_enabled = bool(raw.get("memory_enabled", True))
             mode = raw.get("mode", "normal")
             try:
                 max_context_tokens = max(256, int(raw.get("max_context_tokens", 8192)))
@@ -220,7 +224,8 @@ def load_config(home: Optional[Path] = None,
                   open_session_context=open_session_context,
                   backup_dir=backup_dir, output_dir=output_dir,
                   profiles=profiles, active_profile_id=active_profile_id,
-                  chat_model=chat_model, bricks_enabled=bricks_enabled)
+                  chat_model=chat_model, bricks_enabled=bricks_enabled,
+                  memory_enabled=memory_enabled)
 
 
 def _engine_to_profile(engine: EngineConfig, pid: str, name: str) -> dict:

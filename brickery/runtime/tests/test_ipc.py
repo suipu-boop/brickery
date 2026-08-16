@@ -61,6 +61,24 @@ class IpcIntegrationTest(RuntimeTestCase):
         self.assertTrue(r["ok"])
         self.assertEqual(r["data"]["status"], "ok")
 
+    def test_memory_disabled_uses_stub(self):
+        # memory_enabled=false → self.memory 为桩，调用不抛异常
+        (self.home / "config.json").write_text(
+            '{"engine": {"backend": "api"}, "memory_enabled": false}',
+            encoding="utf-8")
+        srv = IpcServer(host="127.0.0.1", port=0,
+                        home=self.home, models_root=self.models,
+                        local_engine=_FakeEngine())
+        try:
+            from brickery.runtime.ipc import _DisabledMemory
+            self.assertIsInstance(srv.memory, _DisabledMemory)
+            # 桩方法调用不抛异常
+            self.assertIsNone(srv.memory.recall("x"))
+            self.assertIsNone(srv.memory.list_drawers())
+            self.assertIsNone(srv.memory.enqueue("prune"))
+        finally:
+            srv.stop()
+
     def test_core_set_and_get(self):
         # 「认识我们」步骤：写固定核手动槽 → 可读回
         r = _client(self.srv.port, "core_set", {

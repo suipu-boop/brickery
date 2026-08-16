@@ -56,6 +56,19 @@ from brickery.memory.export_utils import to_markdown, to_json
 logger = logging.getLogger("brickery.ipc")
 
 
+class _DisabledMemory:
+    """记忆系统关闭（memory_enabled=false）时的桩。
+
+    所有方法返回 None，不抛异常；使 ipc 内 40+ 处 self.memory.xxx 调用点
+    与 AgentLoop/Daemon 传参天然安全，无需逐点加防护。
+    """
+
+    def __getattr__(self, name: str):
+        def _noop(*args, **kwargs):
+            return None
+        return _noop
+
+
 # --------------------------------------------------------------------------
 # 内置技能（随安装包分发，不走技能市场）
 # 定位：打包态 runtime 在 <root>/brickery-runtime/brickery/runtime/；开发态在 <repo>/brickery/runtime/。
@@ -150,7 +163,11 @@ class IpcServer:
         self.host = host
         self.port = port
         self.config: Config = load_config(home=home, models_root=models_root)
-        self.memory = MemorySystem(engine=self._make_smol_engine())
+        if self.config.memory_enabled:
+            self.memory = MemorySystem(engine=self._make_smol_engine())
+        else:
+            self.memory = _DisabledMemory()
+            logger.info("记忆系统已关闭（memory_enabled=false），记忆相关能力不可用")
         self._local_override = local_engine
         self._api_override = api_engine
         self._build_real = build_real_engines
