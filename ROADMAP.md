@@ -53,6 +53,17 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - 接口速查表落盘：`specs/engine-interfaces.md`（根治重复读文件，写代码只查文档）
 - 实施设计落盘：`specs/engine-buildout.md`
 
+**底座实施后续（2026-08-16 下午至晚，均已 push）**：
+- **memory-* 积木保留为开关**（commit `7031ef4`）：config.memory_enabled（默认开可关）+ ipc 桩对象，方案见 `specs/memory-toggle.md`
+- **launcher 拉起引导/聊天**（commit `9810eca`）：按 config.json 决定开引导页(18766)或聊天页(18767)，方案见 `specs/agent-ui-reuse-base.md`
+- **原生壳 WKWebView 形态**（commit `a86b07f` + `b465f90`）：产出 agent 改为原生壳（BrickeryApp Swift 壳，_bundle_native_shell 编译打包），setup_wizard 补自选文件夹步骤；方案见 `specs/native-webview.md`、`specs/native-app.md`
+- **setup_wizard 分步化 + 八家预设**（commit `960b8ed`/`b3d605f`/`3e29893`）：3 步向导+步骤指示器+上一步/下一步；八家 API 预设对齐 Shadeling 原版（去 /chat/completions 后缀+正确模型名）；备份/产出文件夹原生选择器（osascript choose folder）；验证配置请求补拼 /chat/completions 修复 404；方案见 `specs/setup-wizard-steps.md`
+- **自包含积木 files 落盘**（brickery `41b3125` + brick-vault `803d2ac`）：feishu/telegram/ax/visualize 4 块声明型积木补实现文件自包含；方案见 `specs/bricks-self-contained.md`
+- **chat_ui 12 区块改造**（commit `7c8048d`）：对齐 Shadeling 蓝本改造为 12 区块侧边栏桌面 agent 界面；方案见 `specs/chat-ui-nav.md`
+- **数据隔离机制落盘**（commit `4d7a9e4`）：产出 agent 测试数据不污染底座/积木库，三层隔离 + 防污染红线；见 `specs/data-isolation.md`
+- **对接矩阵审计**（commit `a3c9308`）：底座与 19 块积木静态全检，结论 15 绿 4 黄 0 红；见 `specs/integration-audit.md`
+- **4 块黄项处理**：rules/skill-library IPC 参数名对齐底座 handler（brick-vault commit `e07cdee`，已 push）；browser 经镜像装 bsk 0.1.10（`~/.local/bin/bsk`，PATH 已配）；high-config-doc 就位 editor_sdk 引擎（`~/.brickery/bin/github.com/suipu-boop/shadeling-skills/`）；browser 积木仍需手动装 Chrome 扩展方能完整使用
+
 ## 今日进度（2026-08-15）
 
 - 阶段一断寄生完成：Shadeling 内组装/积木代码已清空（commit `5cc35b5`，已 push）
@@ -109,9 +120,15 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 4. **P6 积木市场**：BrickMarket 已就绪，接 web 工作台热插拔——待启动
 5. **白皮书定位**：保持内部规划文档（不硬塞商业化蓝本）；商业化蓝本另开 `docs/whitepaper.md` 一事——用户：不着急，不分心，暂缓
 
-## 下一步
+## 下一步（2026-08-17 续做）
 
-- 从「待拍板事项」逐项拍板后推进（下次会话先读本文件对齐）
+1. **重产出 suipu-assistant**：内嵌 runtime 缺 4 块实现文件（feishu/telegram/ax/visualize），需重走 web 工作台产出 + 重打 DMG 到桌面验证
+2. **端到端实测**：聊天页实际对话全链路（引导配置 → 聊天 → 积木调用）
+3. **P6 积木市场**：BrickMarket 接 web 工作台热插拔（brick-vault 在线浏览/安装）
+4. **browser 积木收尾**：Chrome 扩展需用户手动安装后方能完整使用
+5. **拼装、跑起来完整链路测试**（用户预期还需数日）
+
+> 新会话唤醒句：继续 /Users/suipu/Dev/brickery 的积木平台，先读 ROADMAP.md 对齐阶段。
 
 ## 关键路径
 
