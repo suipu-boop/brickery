@@ -2565,6 +2565,13 @@ def main(argv: Optional[list] = None) -> int:
     srv = IpcServer(host=args.host, port=args.port, home=home)
     srv.start()
     print(f"[Brickery IPC] 监听 {srv.host}:{srv.port}", flush=True)
+    # 自动拉起 daemon（记忆整理后台任务）：保证桌面 App 打开即用，
+    # 聊天界面不因 daemon 未启动而空白。失败仅告警，不影响核心引擎。
+    try:
+        srv._h_daemon_start({})
+        print("[Brickery IPC] daemon 已自动启动", flush=True)
+    except Exception as _e:  # noqa: BLE001
+        print(f"[Brickery IPC] daemon 自动启动失败：{_e}", flush=True)
     # 拉起已注册的平台网关连接器（飞书 / Telegram 等；OFF by default，无配置不拉起）。
     # 单连接器故障（如飞书缺 websocket-client）绝不能拖垮整个后端：import / 构造 / 注册
     # 全部隔离，失败仅告警，核心引擎（ipc + 主推理后端）照常运行。

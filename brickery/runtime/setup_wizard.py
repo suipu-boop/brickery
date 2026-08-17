@@ -151,6 +151,7 @@ PAGE_HTML = """<!DOCTYPE html>
     <div id="apiPanel">
       <label>服务商预设（可编辑，点选即填入模板）</label>
       <select id="preset"></select>
+      <div class="hint" id="presetHint" style="font-size:11px;color:var(--dim);margin-top:4px"></div>
       <div class="row">
         <div><label>API URL</label><input id="api_url" placeholder="https://..."></div>
         <div><label>模型名</label><input id="api_model" placeholder="model-id"></div>
@@ -231,6 +232,9 @@ async function init() {
     o.value = i; o.textContent = p.name;
     sel.appendChild(o);
   });
+  const cp = document.createElement("option");
+  cp.value = "-1"; cp.textContent = "自定义 Coding Plan";
+  sel.appendChild(cp);
   sel.onchange = () => applyPreset(sel.value);
   applyPreset(0);
 
@@ -249,11 +253,21 @@ async function init() {
 }
 
 function applyPreset(i) {
+  const hint = $("presetHint");
+  if (i === "-1") {
+    // 自定义 Coding Plan：清空模板，手填任意兼容 OpenAI 的端点
+    $("api_url").value = "";
+    $("api_model").value = "";
+    $("api_name").value = "";
+    if (hint) hint.textContent = "自定义 Coding Plan：手填任意兼容 OpenAI 的端点 + 模型 + Key，名称可自定义";
+    return;
+  }
   const p = presets[i];
   if (!p) return;
   $("api_url").value = p.url;
   $("api_model").value = p.model;
   $("api_name").value = p.name;
+  if (hint) hint.textContent = "";
 }
 
 function toggleBackend() {

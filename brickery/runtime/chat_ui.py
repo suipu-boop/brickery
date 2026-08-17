@@ -220,6 +220,7 @@ PAGE_HTML = """<!DOCTYPE html>
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
   .dot.err { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .dot.bad { background: var(--red); box-shadow: 0 0 6px var(--red); }
   .dot.warn { background: #d29922; box-shadow: 0 0 6px #d29922; }
   .dot.off { background: var(--dim); }
 
@@ -269,6 +270,11 @@ PAGE_HTML = """<!DOCTYPE html>
   }
   .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent); }
   .field textarea { resize: vertical; min-height: 60px; }
+  .engine-status { margin-bottom: 12px; padding: 8px 10px; background: #0d1117; border: 1px solid var(--line); border-radius: 6px; }
+  .status-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal-box { width: 420px; max-width: 92vw; max-height: 86vh; overflow-y: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 18px; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .modal-box h3 { font-size: 14px; margin-bottom: 14px; color: var(--accent); letter-spacing: 1px; }
   .row { display: flex; align-items: center; gap: 8px; }
   .row.between { justify-content: space-between; }
   .row.wrap { flex-wrap: wrap; }
@@ -376,6 +382,14 @@ PAGE_HTML = """<!DOCTYPE html>
   }
   .attach-chip .x { cursor: pointer; margin-left: 4px; color: var(--dim); }
   .attach-chip .x:hover { color: var(--red); }
+  #toolRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  #toolRow .toolRow-hint { font-size: 11px; color: var(--dim); }
+  #modelSel {
+    background: #0d1117; border: 1px solid var(--line); color: var(--ink);
+    padding: 6px 10px; border-radius: 4px; font-family: inherit; font-size: 12px;
+    height: 30px; min-width: 180px; cursor: pointer;
+  }
+  #modelSel:focus { outline: none; border-color: var(--accent); }
   #inputRow { display: flex; gap: 8px; align-items: flex-end; }
   #input {
     flex: 1; background: #0d1117; border: 1px solid var(--line); color: var(--ink);
@@ -515,7 +529,6 @@ const NAV = [
   { id: "doctor", title: "医生" },
   { id: "tasks", title: "定时任务" },
   { id: "vault", title: "保险库" },
-  { id: "workbench", title: "工作台" },
 ];
 const NAV_EXT = [
   { id: "backup", title: "备份恢复" },
@@ -583,6 +596,7 @@ async function toggleDaemon() {
 let sessions = [], currentSessionId = null, messages = [];
 let isThinking = false, selectionMode = false, selectedMsgs = new Set();
 let attachments = [], streamAbort = null;
+let profiles = [], activeProfileId = "";
 
 function renderChat() {
   $("content").innerHTML = `
@@ -602,10 +616,14 @@ function renderChat() {
       <div id="messages"></div>
       <div class="chat-input-bar">
         <div id="attachments"></div>
+        <div id="toolRow">
+          <select id="modelSel" title="模型预设（绑定当前会话）" onchange="onModelSelChange()"></select>
+          <span class="toolRow-hint">模型</span>
+        </div>
         <div id="inputRow">
-          <button class="icon-btn" title="添加附件" onclick="addAttachment()">＋</button>
           <textarea id="input" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
           <button id="send" onclick="sendMsg()">发送</button>
+          <button class="icon-btn" title="添加附件" onclick="addAttachment()">＋</button>
           <button id="stopBtn" style="display:none" onclick="stopGen()">中断</button>
         </div>
       </div>
@@ -616,7 +634,31 @@ function renderChat() {
   loadSessions();
   if (currentSessionId) openSession(currentSessionId);
   else { messages = []; renderMessages(); }
+  loadModelSel();
   input.focus();
+}
+
+/* ---- 聊天框模型选择器（列全部预设，绑当前会话） ---- */
+async function loadModelSel() {
+  const sel = $("modelSel");
+  if (!sel) return;
+  try {
+    const c = await ipc("config_get", {});
+    profiles = (c.profiles || []).filter(p => p && p.id);
+    activeProfileId = c.active_profile_id || "";
+  } catch (e) { profiles = []; }
+  let cur = activeProfileId;
+  if (currentSessionId) {
+    try { const s = await ipc("session_get", { session_id: currentSessionId }); cur = s.profile_id || cur; } catch (e) {}
+  }
+  sel.innerHTML = profiles.map(p => `<option value="${esc(p.id)}" ${p.id === cur ? "selected" : ""}>${esc(p.name || p.id)}</option>`).join("") || '<option value="">默认</option>';
+}
+async function onModelSelChange() {
+  const sel = $("modelSel");
+  if (!sel || !currentSessionId) return;
+  const pid = sel.value;
+  try { await ipc("session_set_profile", { session_id: currentSessionId, profile_id: pid }); }
+  catch (e) { alert("绑定模型失败：" + e.message); }
 }
 
 async function loadSessions() {
@@ -989,40 +1031,51 @@ async function openDrawer(id) {
   let d = null;
   try { const r = await ipc("drawer_get", { drawer_id: id }); d = r.drawer; } catch (e) {}
   if (!d) { alert("抽屉不存在"); return; }
+  const nodes = d.nodes || [], edges = d.edges || [];
   $("content").innerHTML = `
     <div class="card">
       <div class="row between">
-        <h3 style="margin:0">${esc(d.title || "未命名")}</h3>
-        <button class="btn sm" onclick="renderCabinet()">← 返回</button>
+        <h3 style="margin:0">${esc(d.title || "未命名")} · 工作台</h3>
+        <button class="btn sm" onclick="renderCabinet()">← 返回文件柜</button>
       </div>
-      <div class="hint">${esc(d.id || "")} · 节点 ${(d.nodes || []).length} · 边 ${(d.edges || []).length}</div>
+      <div class="hint">${esc(d.id || "")} · 节点 ${nodes.length} · 边 ${edges.length} · kit ${(d.kit || []).length ? esc((d.kit || []).join(", ")) : "未预配"}</div>
       <div class="row wrap" style="margin-bottom:10px">
         <button class="btn sm" onclick="addNode('${esc(d.id)}')">＋ 节点</button>
         <button class="btn sm" onclick="addEdge('${esc(d.id)}')">＋ 边</button>
         <button class="btn sm" onclick="syncRecordbook('${esc(d.id)}')">同步记录本</button>
+        <button class="btn sm" onclick="editKit('${esc(d.id)}')">kit 预配</button>
       </div>
-      <div class="grid2">
-        <div>
-          <div class="hint">节点</div>
-          ${(d.nodes || []).map(n => `
+      <div id="graphCanvas"></div>
+      <div class="grid2" style="margin-top:14px">
+        <div class="card">
+          <h3>节点</h3>
+          ${nodes.map(n => `
             <div class="list-item">
               <div><div class="title">${esc(n.label || n.id)}</div><div class="sub">${esc(n.type || "")} · ${esc(n.id || "")}</div></div>
               <div class="row">
-                <button class="btn sm" onclick="viewNode('${esc(n.id)}')">查看</button>
+                <button class="btn sm" onclick="editNode('${esc(n.id)}')">编辑</button>
+                <button class="btn sm" onclick="viewNode('${esc(n.id)}')">解读</button>
                 <button class="btn sm danger" onclick="delNode('${esc(n.id)}')">删</button>
               </div>
             </div>`).join("") || '<div class="empty">暂无节点</div>'}
         </div>
-        <div>
-          <div class="hint">记录本</div>
-          <div class="pre">${esc(d.recordbook || "（空）")}</div>
+        <div class="card">
+          <h3>记录本（R/S/P 三段）</h3>
+          <div id="recordbookEdit"></div>
         </div>
       </div>
+      <div class="card" style="margin-top:14px">
+        <h3>项目聊天</h3>
+        <div id="drawerChatBox"></div>
+      </div>
     </div>`;
+  drawGraph(nodes, edges);
+  renderRecordbook(d);
+  renderDrawerChat(d);
 }
 async function addNode(did) {
   const label = prompt("节点标签："); if (label == null) return;
-  const type = prompt("节点类型（如 task/note/idea）：") || "note";
+  const type = prompt("节点类型（goal/decision/risk/task/resource/rule/status/progress）：") || "task";
   const content = prompt("节点内容（可留空）：") || "";
   try { await ipc("node_add", { drawer_id: did, type, label, content }); openDrawer(did); }
   catch (e) { alert("添加失败：" + e.message); }
@@ -1035,6 +1088,7 @@ async function addEdge(did) {
   catch (e) { alert("添加失败：" + e.message); }
 }
 async function delNode(nid) {
+  if (!confirm("删除节点 " + nid + "？")) return;
   try { await ipc("node_delete", { node_id: nid }); renderCabinet(); }
   catch (e) { alert("删除失败：" + e.message); }
 }
@@ -1045,8 +1099,164 @@ async function syncRecordbook(did) {
 async function viewNode(nid) {
   try {
     const d = await ipc("explain_node", { node_id: nid });
-    alert("节点解读：\\n" + (d.result || "").slice(0, 800));
+    const r = d.result || {};
+    if (r.degraded) { alert("（无引擎，展示原文）\\n" + (r.raw || "").slice(0, 800)); }
+    else { alert("节点解读：\\n" + (r.explanation || "").slice(0, 800)); }
   } catch (e) { alert("解读失败：" + e.message); }
+}
+
+/* ---- E2 节点详情编辑 ---- */
+let editingNode = null;
+async function editNode(nid) {
+  let node = null;
+  try {
+    const d = await ipc("drawer_list", {});
+    const drawers = d.items || [];
+    for (const dr of drawers) {
+      const g = await ipc("drawer_get", { drawer_id: dr.id });
+      const nd = (g.drawer.nodes || []).find(n => n.id === nid);
+      if (nd) { node = nd; break; }
+    }
+  } catch (e) {}
+  if (!node) { alert("节点不存在"); return; }
+  editingNode = nid;
+  const box = $("recordbookEdit");
+  const panel = document.createElement("div");
+  panel.className = "card";
+  panel.style.marginTop = "10px";
+  panel.innerHTML = `
+    <h3>编辑节点</h3>
+    <div class="field"><label>标题</label><input id="enLabel" value="${esc(node.label || "")}"></div>
+    <div class="field"><label>类型</label>
+      <select id="enType">${["goal","decision","risk","task","resource","rule","status","progress"].map(t => `<option value="${t}" ${t === node.type ? "selected" : ""}>${t}</option>`).join("")}</select>
+    </div>
+    <div class="field"><label>内容</label><textarea id="enContent" rows="4">${esc(node.content || "")}</textarea></div>
+    <div class="row">
+      <button class="btn primary" onclick="saveNode()">保存</button>
+      <button class="btn ghost" onclick="cancelEditNode()">取消</button>
+    </div>`;
+  box.appendChild(panel);
+}
+async function saveNode() {
+  if (!editingNode) return;
+  try {
+    await ipc("node_update", { node_id: editingNode, label: $("enLabel").value.trim(), content: $("enContent").value, type: $("enType").value });
+    editingNode = null;
+    const d = await ipc("drawer_list", {});
+    const drawers = d.items || [];
+    for (const dr of drawers) {
+      const g = await ipc("drawer_get", { drawer_id: dr.id });
+      if ((g.drawer.nodes || []).some(n => n.id === editingNode)) { openDrawer(dr.id); return; }
+    }
+    renderCabinet();
+  } catch (e) { alert("保存失败：" + e.message); }
+}
+function cancelEditNode() {
+  editingNode = null;
+  const box = $("recordbookEdit");
+  if (box) box.querySelectorAll(".card").forEach(c => c.remove());
+}
+
+/* ---- E4 记录本 R/S/P 三段编辑 ---- */
+function renderRecordbook(d) {
+  const box = $("recordbookEdit");
+  if (!box) return;
+  const nodes = d.nodes || [];
+  const secs = [["R", "规则（Rules）"], ["S", "现状（Status）"], ["P", "进度（Progress）"]];
+  const anchors = {};
+  for (const n of nodes) {
+    if (n.type === "anchor" && /::[RSP]$/.test(n.id)) anchors[n.id.slice(-1)] = n;
+  }
+  box.innerHTML = secs.map(([code, title]) => {
+    const a = anchors[code];
+    return `
+      <div class="field">
+        <label>${title}</label>
+        <textarea id="rb_${code}" rows="3" placeholder="（待补充）">${esc(a ? (a.content || "") : "")}</textarea>
+      </div>`;
+  }).join("") + `
+    <div class="row">
+      <button class="btn primary" onclick="saveRecordbook('${esc(d.id)}')">保存记录本</button>
+      <button class="btn ghost" onclick="syncRecordbook('${esc(d.id)}')">从节点重生成</button>
+    </div>`;
+}
+async function saveRecordbook(did) {
+  try {
+    for (const code of ["R", "S", "P"]) {
+      const nid = did + "::" + code;
+      await ipc("node_update", { node_id: nid, content: ($("rb_" + code) ? $("rb_" + code).value : "") });
+    }
+    await ipc("recordbook_sync", { drawer_id: did });
+    openDrawer(did);
+  } catch (e) { alert("保存失败：" + e.message); }
+}
+
+/* ---- E5 项目独立聊天 ---- */
+let drawerChatHistory = [];
+function renderDrawerChat(d) {
+  const box = $("drawerChatBox");
+  if (!box) return;
+  drawerChatHistory = [];
+  box.innerHTML = `
+    <div id="dcMsgs" class="pre" style="max-height:220px;overflow:auto;margin-bottom:8px">（项目聊天，反馈留在工作台内）</div>
+    <div class="row">
+      <input id="dcInput" placeholder="输入项目消息，Enter 发送">
+      <button class="btn primary" onclick="sendDrawerChat('${esc(d.id)}')">发送</button>
+    </div>`;
+  const inp = $("dcInput");
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); sendDrawerChat(d.id); } });
+}
+async function sendDrawerChat(did) {
+  const inp = $("dcInput");
+  const msg = inp ? inp.value.trim() : "";
+  if (!msg) return;
+  const box = $("dcMsgs");
+  drawerChatHistory.push({ role: "user", text: msg });
+  if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "随朴：") + m.text).join("\\n");
+  if (inp) inp.value = "";
+  try {
+    const r = await ipc("drawer_chat", { drawer_id: did, message: msg });
+    drawerChatHistory.push({ role: "assistant", text: r.reply || "" });
+    if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "随朴：") + m.text).join("\\n");
+  } catch (e) {
+    drawerChatHistory.push({ role: "assistant", text: "（项目聊天失败：" + e.message + "）" });
+    if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "随朴：") + m.text).join("\\n");
+  }
+}
+
+/* ---- E6 抽屉 kit 预配 ---- */
+async function editKit(did) {
+  let d = null;
+  try { const r = await ipc("drawer_get", { drawer_id: did }); d = r.drawer; } catch (e) {}
+  if (!d) { alert("抽屉不存在"); return; }
+  const skills = [];
+  try { const s = await ipc("skill_list", {}); skills.push(...(s.items || []).map(x => x.id || x.name)); } catch (e) {}
+  const tools = [];
+  try { const t = await ipc("tool_list", {}); tools.push(...(t.items || []).map(x => x.id || x.name)); } catch (e) {}
+  const cur = d.kit || [];
+  const opts = [...new Set([...skills, ...tools])];
+  $("content").innerHTML = `
+    <div class="card">
+      <div class="row between">
+        <h3 style="margin:0">${esc(d.title || "未命名")} · kit 预配</h3>
+        <button class="btn sm" onclick="openDrawer('${esc(did)}')">← 返回工作台</button>
+      </div>
+      <div class="hint">勾选进项目预载的技能/工具（省 token），保存后写入抽屉 kit</div>
+      <div class="grid2" style="margin-top:10px">
+        ${opts.map(o => `
+          <label class="list-item" style="cursor:pointer">
+            <input type="checkbox" value="${esc(o)}" ${cur.includes(o) ? "checked" : ""}> ${esc(o)}
+          </label>`).join("") || '<div class="empty">无可用技能/工具</div>'}
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="saveKit('${esc(did)}')">保存 kit</button>
+      </div>
+    </div>`;
+}
+async function saveKit(did) {
+  const checked = [...document.querySelectorAll('#content input[type="checkbox"]:checked')].map(i => i.value);
+  try { await ipc("drawer_update", { drawer_id: did, kit: checked }); openDrawer(did); }
+  catch (e) { alert("保存失败：" + e.message); }
 }
 
 /* ================= 记忆 ================= */
@@ -1146,21 +1356,28 @@ async function renderSettings() {
   let cfg = null;
   try { cfg = await ipc("config_get", {}); } catch (e) { $("content").innerHTML = '<div class="err-text">加载配置失败：' + esc(e.message) + '</div>'; return; }
   const eng = cfg.engine || {};
+  apiProfiles = (cfg.profiles || []).filter(p => p && p.id);
+  apiActiveId = cfg.active_profile_id || "";
   $("content").innerHTML = `
     <div class="grid2">
       <div class="card">
         <h3>引擎配置</h3>
+        <div class="engine-status">
+          <div class="status-row"><span class="dot" id="stLocalDot"></span><span id="stLocalText">本地模型：检测中...</span></div>
+          <div class="status-row"><span class="dot" id="stApiDot"></span><span id="stApiText">网络 API：检测中...</span></div>
+        </div>
         <div class="field"><label>后端</label>
           <select id="cfgBackend">
             <option value="api" ${eng.backend === "api" ? "selected" : ""}>网络 API</option>
             <option value="local" ${eng.backend === "local" ? "selected" : ""}>本地 GGUF</option>
           </select>
         </div>
-        <div class="field"><label>本地模型（local_model）</label><input id="cfgLocal" value="${esc(eng.local_model || "")}"></div>
-        <div class="field"><label>API 端点（api_url）</label><input id="cfgUrl" value="${esc(eng.api_url || "")}"></div>
-        <div class="field"><label>API Key（留空保持原值，填 * 掩码保持）</label><input id="cfgKey" type="password" value="${esc(eng.api_key || "")}"></div>
-        <div class="field"><label>API 模型（api_model）</label><input id="cfgModel" value="${esc(eng.api_model || "")}"></div>
-        <div class="field"><label>显示名称（api_name）</label><input id="cfgName" value="${esc(eng.api_name || "")}"></div>
+        <div class="field"><label>本地模型</label>
+          <div class="row">
+            <input id="cfgLocal" value="${esc(eng.local_model || "")}" placeholder="模型路径">
+            <button class="btn sm" onclick="pickLocalModel()">选择</button>
+          </div>
+        </div>
         <div class="row">
           <button class="btn primary" onclick="saveConfig()">保存配置</button>
           <span class="muted">数据目录：${esc(cfg.home || "")}</span>
@@ -1168,23 +1385,135 @@ async function renderSettings() {
       </div>
       <div>
         <div class="card">
+          <h3>网络 API 预设</h3>
+          <div class="hint">每个 API 一张卡片，可编辑/删除；「默认」为当前生效预设</div>
+          <div id="apiCards"></div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn sm primary" onclick="openApiModal()">＋ 新建 API</button>
+            <button class="btn sm" onclick="openApiModal('coding')">＋ 新建 Coding Plan</button>
+            <button class="btn sm" onclick="saveConfig()">保存预设</button>
+          </div>
+        </div>
+        <div class="card">
           <h3>模型目录</h3>
           <div class="hint">${esc(cfg.models_root || "")}</div>
           <div id="modelList"><div class="muted">加载中...</div></div>
         </div>
         <div class="card">
           <h3>其他</h3>
-          <div class="field"><label>技能源（skill_repo_url）</label><input id="cfgRepo" value="${esc(cfg.skill_repo_url || "")}"></div>
           <div class="field"><label>备份目录（backup_dir）</label><input id="cfgBackup" value="${esc(cfg.backup_dir || "")}"></div>
           <div class="field"><label>产出目录（output_dir）</label><input id="cfgOutput" value="${esc(cfg.output_dir || "")}"></div>
+          <div class="field"><label>请求超时（秒）</label><input id="cfgTimeout" type="number" min="5" value="${esc(cfg.timeout || 60)}"></div>
           <div class="row">
             <label class="switch"><input type="checkbox" id="cfgTools" ${cfg.tools_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用工具</span>
             <label class="switch" style="margin-left:12px"><input type="checkbox" id="cfgSkills" ${cfg.skills_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用技能</span>
           </div>
         </div>
       </div>
+    </div>
+    <div id="apiModal" class="modal-mask" style="display:none" onclick="if(event.target===this)closeApiModal()">
+      <div class="modal-box">
+        <h3 id="apiModalTitle">新建 API 预设</h3>
+        <div class="field"><label>预设名称</label><input id="amName" placeholder="如 DeepSeek"></div>
+        <div class="field"><label>API 端点（api_url）</label><input id="amUrl" placeholder="https://api.openai.com/v1"></div>
+        <div class="field"><label>模型名（api_model）</label><input id="amModel" placeholder="gpt-4o"></div>
+        <div class="field"><label>API Key</label><input id="amKey" type="password" placeholder="sk-..."></div>
+        <div class="field"><label>请求超时（秒）</label><input id="amTimeout" type="number" min="5" value="60"></div>
+        <div class="row" style="justify-content:flex-end">
+          <button class="btn" onclick="closeApiModal()">取消</button>
+          <button class="btn primary" onclick="saveApiModal()">保存</button>
+        </div>
+      </div>
     </div>`;
+  renderApiCards();
   loadModels();
+  renderEngineStatus();
+}
+let apiProfiles = [], apiActiveId = "";
+function renderApiCards() {
+  const box = $("apiCards"); if (!box) return;
+  box.innerHTML = apiProfiles.map(p => `
+    <div class="list-item" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:8px">
+      <div>
+        <div class="title">${esc(p.name || p.id)} ${p.id === apiActiveId ? '<span class="tag installed">默认</span>' : ""}</div>
+        <div class="sub">${esc(p.api_url || "")} · ${esc(p.api_model || "")}${p.backend === "local" ? " · 本地" : ""}</div>
+      </div>
+      <div class="row">
+        <button class="btn sm" onclick="openApiModal('${esc(p.id)}')">编辑</button>
+        <button class="btn sm" onclick="delApiCard('${esc(p.id)}')">删</button>
+        ${p.id !== apiActiveId ? `<button class="btn sm" onclick="setActiveApi('${esc(p.id)}')">设为默认</button>` : ""}
+      </div>
+    </div>`).join("") || '<div class="empty">暂无 API 预设，点「＋ 新建 API」添加</div>';
+}
+let apiModalEditId = null;
+function openApiModal(idOrKind) {
+  apiModalEditId = null;
+  const m = $("apiModal"); if (!m) return;
+  $("apiModalTitle").textContent = "新建 API 预设";
+  $("amName").value = ""; $("amUrl").value = ""; $("amModel").value = ""; $("amKey").value = ""; $("amTimeout").value = "60";
+  if (idOrKind === "coding") {
+    $("apiModalTitle").textContent = "新建 Coding Plan";
+    $("amName").value = "我的 Coding Plan";
+  } else if (typeof idOrKind === "string" && idOrKind) {
+    const p = apiProfiles.find(x => x.id === idOrKind); if (!p) return;
+    apiModalEditId = idOrKind;
+    $("apiModalTitle").textContent = "编辑 API 预设";
+    $("amName").value = p.name || ""; $("amUrl").value = p.api_url || ""; $("amModel").value = p.api_model || "";
+    $("amKey").value = p.api_key || ""; $("amTimeout").value = p.timeout || 60;
+  }
+  m.style.display = "flex";
+}
+function closeApiModal() { const m = $("apiModal"); if (m) m.style.display = "none"; }
+function saveApiModal() {
+  const name = $("amName").value.trim();
+  if (!name) { alert("请填写预设名称"); return; }
+  const url = $("amUrl").value.trim();
+  const model = $("amModel").value.trim();
+  const key = $("amKey").value.trim();
+  const timeout = parseInt($("amTimeout").value, 10) || 60;
+  if (apiModalEditId) {
+    const p = apiProfiles.find(x => x.id === apiModalEditId); if (!p) return;
+    p.name = name; p.api_url = url; p.api_model = model; p.api_name = name;
+    if (key) p.api_key = key;
+    p.timeout = timeout;
+  } else {
+    const id = "p" + Date.now().toString(36);
+    apiProfiles.push({ id, name, backend: "api", api_url: url, api_key: key, api_model: model, api_name: name, timeout });
+    if (!apiActiveId) apiActiveId = id;
+  }
+  closeApiModal();
+  renderApiCards();
+}
+function delApiCard(id) {
+  if (!confirm("删除 API 预设「" + (apiProfiles.find(x => x.id === id) || {}).name + "」？")) return;
+  apiProfiles = apiProfiles.filter(x => x.id !== id);
+  if (apiActiveId === id) apiActiveId = apiProfiles.length ? apiProfiles[0].id : "";
+  renderApiCards();
+}
+function setActiveApi(id) { apiActiveId = id; renderApiCards(); }
+async function renderEngineStatus() {
+  const lDot = $("stLocalDot"), lTxt = $("stLocalText"), aDot = $("stApiDot"), aTxt = $("stApiText");
+  if (!lDot) return;
+  try {
+    const d = await ipc("status", {});
+    const eng = d.engine || {};
+    const ok = (el, txt, good) => { el.className = "dot " + (good ? "ok" : "bad"); txt.textContent = txt.textContent.split("：")[0] + "：" + (good ? "可用" : "不可用"); };
+    if (eng.backend === "local") {
+      ok(lDot, lTxt, !!eng.local_available);
+      lTxt.textContent = "本地模型：" + (eng.local_available ? "可用" : "不可用") + (eng.local_model ? "（" + eng.local_model + "）" : "");
+      aTxt.textContent = "网络 API：未绑定";
+      aDot.className = "dot";
+    } else {
+      ok(aDot, aTxt, !!eng.network_configured);
+      aTxt.textContent = "网络 API：" + (eng.network_configured ? "已绑定" : "未绑定") + (eng.api_name ? "（" + eng.api_name + "）" : "");
+      lTxt.textContent = "本地模型：未启用";
+      lDot.className = "dot";
+    }
+  } catch (e) { lTxt.textContent = "引擎状态获取失败"; }
+}
+function pickLocalModel() {
+  const v = prompt("输入本地 GGUF 模型路径：", $("cfgLocal").value || "");
+  if (v != null) $("cfgLocal").value = v.trim();
 }
 async function loadModels() {
   const box = $("modelList"); if (!box) return;
@@ -1199,15 +1528,13 @@ async function saveConfig() {
   const params = {
     backend: $("cfgBackend").value,
     local_model: $("cfgLocal").value.trim(),
-    api_url: $("cfgUrl").value.trim(),
-    api_key: $("cfgKey").value,
-    api_model: $("cfgModel").value.trim(),
-    api_name: $("cfgName").value.trim(),
-    skill_repo_url: $("cfgRepo").value.trim(),
     backup_dir: $("cfgBackup").value.trim(),
     output_dir: $("cfgOutput").value.trim(),
     tools_enabled: $("cfgTools").checked,
     skills_enabled: $("cfgSkills").checked,
+    request_timeout: parseInt($("cfgTimeout").value, 10) || 60,
+    profiles: apiProfiles,
+    active_profile_id: apiActiveId,
   };
   try { await ipc("config_set", params); alert("配置已保存"); loadStatus(); }
   catch (e) { alert("保存失败：" + e.message); }
@@ -1362,41 +1689,12 @@ async function vaultOcr() {
   catch (e) { alert("入库失败：" + e.message); }
 }
 
-/* ================= 工作台 ================= */
-async function renderWorkbench() {
-  $("content").innerHTML = '<div class="empty">加载中...</div>';
-  let drawers = [];
-  try { const d = await ipc("drawer_list", {}); drawers = d.items || []; } catch (e) {}
-  $("content").innerHTML = `
-    <div class="card">
-      <div class="row between">
-        <h3 style="margin:0">工作台 · 项目图谱</h3>
-        <button class="btn sm primary" onclick="newDrawer()">＋ 新建抽屉</button>
-      </div>
-      <div class="hint">选择抽屉查看图谱画布与记录本</div>
-      <div class="row wrap" id="wbDrawers">
-        ${drawers.map(d => `<button class="btn sm" onclick="openWorkbench('${esc(d.id)}')">${esc(d.title || d.id)}</button>`).join("") || '<span class="muted">暂无抽屉</span>'}
-      </div>
-      <div id="wbBody" style="margin-top:14px"></div>
-    </div>`;
-}
-async function openWorkbench(id) {
-  let d = null;
-  try { const r = await ipc("drawer_get", { drawer_id: id }); d = r.drawer; } catch (e) {}
-  if (!d) { alert("抽屉不存在"); return; }
-  const nodes = d.nodes || [], edges = d.edges || [];
-  const body = $("wbBody");
-  body.innerHTML = `
-    <div class="hint">${esc(d.title || "")} · ${nodes.length} 节点 / ${edges.length} 边</div>
-    <div id="graphCanvas"></div>
-    <div class="grid2" style="margin-top:14px">
-      <div class="card"><h3>节点</h3>
-        ${nodes.map(n => `<div class="list-item"><div><div class="title">${esc(n.label || n.id)}</div><div class="sub">${esc(n.type || "")}</div></div><div class="row"><button class="btn sm" onclick="viewNode('${esc(n.id)}')">解读</button><button class="btn sm danger" onclick="delNode('${esc(n.id)}')">删</button></div></div>`).join("") || '<div class="empty">暂无节点</div>'}
-      </div>
-      <div class="card"><h3>记录本</h3><div class="pre">${esc(d.recordbook || "（空）")}</div></div>
-    </div>`;
-  drawGraph(nodes, edges);
-}
+/* ================= 工作台图谱（文件柜内） ================= */
+const NODE_COLORS = {
+  goal: "#3fb950", decision: "#d29922", risk: "#f85149", task: "#58a6ff",
+  resource: "#bc8cff", rule: "#3fb950", status: "#39c5cf", progress: "#ff7a18",
+  anchor: "#8b949e",
+};
 function drawGraph(nodes, edges) {
   const canvas = $("graphCanvas"); if (!canvas) return;
   const W = canvas.clientWidth, H = 360;
@@ -1417,7 +1715,8 @@ function drawGraph(nodes, edges) {
   }
   for (const n of nodes) {
     const p = pos[n.id] || { x: W / 2, y: H / 2 };
-    html += '<div class="g-node" style="left:' + (p.x - 60) + 'px;top:' + (p.y - 14) + 'px" title="' + esc(n.id) + '">' + esc(n.label || n.id) + '</div>';
+    const color = NODE_COLORS[n.type] || "#8b949e";
+    html += '<div class="g-node" style="left:' + (p.x - 60) + 'px;top:' + (p.y - 14) + 'px;border-color:' + color + '" title="' + esc(n.id) + '" onclick="editNode(\\'' + esc(n.id) + '\\')">' + esc(n.label || n.id) + '</div>';
   }
   canvas.innerHTML = html;
 }
@@ -1564,7 +1863,6 @@ const renderers = {
   doctor: renderDoctor,
   tasks: renderTasks,
   vault: renderVault,
-  workbench: renderWorkbench,
   backup: renderBackup,
   rules: renderRules,
   connectors: renderConnectors,
