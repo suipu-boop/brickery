@@ -155,6 +155,12 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             port = int(body.get("port") or 18765)
         except (TypeError, ValueError):
             port = 18765
+        # 产出前自动从 GitHub 拉最新积木/底座；失败静默降级本地缓存，不阻塞产出
+        try:
+            from ..web.sync import sync_all
+            sync_all()
+        except Exception:
+            pass
         try:
             asm = load_vault(self.vault_root)
             plan = asm.assemble(selected)
