@@ -25,8 +25,8 @@ from typing import Dict, List, Optional
 
 from .assembler import AssemblyPlan, AssemblyError
 
-# 产出根目录：~/.brickery/agents/
-DEFAULT_AGENTS_ROOT = Path.home() / ".brickery" / "agents"
+# 产出根目录：写死为桌面（用户要求产出的 agent 安装包都放桌面）
+DEFAULT_AGENTS_ROOT = Path("/Users/suipu/Desktop")
 
 
 @dataclass
