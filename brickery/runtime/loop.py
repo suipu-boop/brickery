@@ -145,7 +145,7 @@ class AgentLoop:
         """
         parts: List[str] = []
         rules = rules if rules is not None else self.rules
-        # 0) 🆕 固定核（手动槽 + 智能槽，每轮稳定，排在规则前）
+        # 0) 固定核（手动槽 + 智能槽，每轮稳定，排在规则前）
         core_text = self._core_text()
         if core_text:
             parts.append(core_text)
@@ -180,7 +180,7 @@ class AgentLoop:
         # 4) 浮现记忆（每轮变动）
         if memory_text:
             parts.append("【相关记忆】\n" + memory_text)
-        # 🆕 4.5 开场上下文（新会话主动浮现，消灭失忆感；首轮后工具循环复用 first_prompt 不重算）
+        # 4.5 开场上下文（新会话主动浮现，消灭失忆感；首轮后工具循环复用 first_prompt 不重算）
         if open_context_text:
             parts.append("【近期上下文 · 新会话开场】\n" + open_context_text)
         # 4.6 §4.5 II 浮现注入（O2 条件触发：仅显著偏离基线/连续恶化时注入，省 token）
@@ -196,7 +196,7 @@ class AgentLoop:
     SKILL_CONTENT_CAP = 2000
 
     def _core_text(self) -> str:
-        """🆕 固定核注入（手动槽 + 智能槽），每轮稳定块。
+        """固定核注入（手动槽 + 智能槽），每轮稳定块。
         
         加载策略：惰性导入 fixed_core，避免 loop 模块的直接依赖。
         空核直接返回空字符串，不增加 prompt 开销。

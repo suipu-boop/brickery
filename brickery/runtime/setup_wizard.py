@@ -339,7 +339,7 @@ $("saveBtn").onclick = async () => {
     output_dir: $("output_dir").value.trim(),
   };
   const r = await jpost("/api/config", body);
-  if (r.ok) setStatus(st, "配置已保存 ✓", true);
+  if (r.ok) setStatus(st, "配置已保存", true);
   else setStatus(st, "保存失败：" + (r.error || ""), false);
 };
 

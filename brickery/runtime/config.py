@@ -62,7 +62,7 @@ class NightlyConfig:
     use_local_model: bool = True     # 【废弃】保留向后兼容，由 induction_backend 控制
     local_model: str = ""
     idle_minutes: float = 5.0
-    auto_core_fill: bool = True      # 🆕 固定核智能槽自动填充
+    auto_core_fill: bool = True      # 固定核智能槽自动填充
 
 
 @dataclass

@@ -720,7 +720,7 @@ class IpcServer:
             return
         try:
             status_value = getattr(task.status, "value", str(task.status))
-            label_map = {"done": "✅ 完成", "failed": "❌ 失败",
+            label_map = {"done": "完成", "failed": "失败",
                          "cancelled": "⏹ 已取消"}
             status_label = label_map.get(status_value, str(status_value))
             title = f"后台任务{status_label}"
@@ -803,7 +803,7 @@ class IpcServer:
         # 每会话独立绑定：前端显式指定 > 会话已存储值；空则回退全局 active
         effective_profile_id = raw_profile_id or self.sessions.profile_id_of(sid)
 
-        # 🆕 新会话开场上下文（消灭「失忆感」；config 可关，默认开）
+        # 新会话开场上下文（消灭「失忆感」；config 可关，默认开）
         # 判定：未带 session_id = 用户开新对话。仅在 config 开启时主动浮现近期上下文。
         open_ctx = ""
         if not params.get("session_id") and getattr(self.config, "open_session_context", True):
@@ -1820,7 +1820,7 @@ class IpcServer:
             # 在线技能源地址（§3.x）：空串/未设=走默认（开发态本地/正式包公网）；也可显式填 file:// 或 http(s)://
             if "skill_repo_url" in params:
                 self.config.skill_repo_url = str(params["skill_repo_url"]).strip()
-            # 🆕 备份/产出目录（§用户数据管理）：显式填则持久化；空串/未设=走默认派生
+            # 备份/产出目录（§用户数据管理）：显式填则持久化；空串/未设=走默认派生
             if "backup_dir" in params and params["backup_dir"]:
                 self.config.backup_dir = Path(str(params["backup_dir"])).expanduser()
             if "output_dir" in params and params["output_dir"]:
@@ -2180,7 +2180,7 @@ class IpcServer:
         }
 
     def _h_backup_default(self, params):
-        """🆕 一键备份到默认位置（self.config.backup_dir），无需每次手选目录。
+        """一键备份到默认位置（self.config.backup_dir），无需每次手选目录。
 
         复用 _h_backup_export 同套 copytree 逻辑；目录不存在自动创建；
         同分钟防冲突加序号。
@@ -2289,7 +2289,7 @@ class IpcServer:
         return {"ok": True, "count": len(self.rules)}
 
     def _h_open_folder(self, params):
-        """🆕 在文件管理器中打开指定目录（macOS 用 `open`），便于用户直达备份/产出文件夹。
+        """在文件管理器中打开指定目录（macOS 用 `open`），便于用户直达备份/产出文件夹。
 
         path 为空时按 kind 回退到 backup_dir / output_dir。
         """
@@ -2347,12 +2347,12 @@ class IpcServer:
             if not pending_sum:
                 for sid, text in self.memory.nightly_pending_sessions():
                     self.memory.enqueue("summarize", {"session_id": sid, "text": text})
-            # 🆕 auto_core_fill：归纳引擎可用时自动推固定核智能槽
+            # auto_core_fill：归纳引擎可用时自动推固定核智能槽
             if getattr(ny, 'auto_core_fill', True):
                 self._auto_fill_core(eng)
 
     def _auto_fill_core(self, eng) -> None:
-        """🆕 O8' 固定核智能槽自动填充（2026-08-09）。
+        """O8' 固定核智能槽自动填充（2026-08-09）。
 
         从近期对话中提取高置信规律：
         - 重复出现 ≥2 次的项目名/偏好/习惯用语 → 自动写入智能槽

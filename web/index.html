@@ -285,8 +285,7 @@
     <h2>组装区 <span class="count" id="sel-count">0</span></h2>
     <div id="assembly">
       <div class="empty" id="empty-hint">
-        <span class="big">🧱</span>
-        从左侧点「加入」或点积木卡片，开始拼装你的 agent
+                从左侧点「加入」或点积木卡片，开始拼装你的 agent
       </div>
       <div id="assembly-list"></div>
     </div>
@@ -350,7 +349,7 @@ async function loadBricks() {
     renderBrickList();
   } catch (e) {
     $('brick-list').innerHTML =
-      '<div class="state-msg"><span class="big">⚠️</span>积木库加载失败<br>' + esc(e.message) +
+      '<div class="state-msg">积木库加载失败<br>' + esc(e.message) +
       '<br><button onclick="loadBricks()">重试</button></div>';
   }
 }
@@ -370,11 +369,11 @@ function renderBrickList() {
   $('brick-count').textContent = list.length + ' / ' + bricks.length;
 
   if (!bricks.length) {
-    $('brick-list').innerHTML = '<div class="state-msg"><span class="big">🧱</span>积木库为空</div>';
+    $('brick-list').innerHTML = '<div class="state-msg">积木库为空</div>';
     return;
   }
   if (!list.length) {
-    $('brick-list').innerHTML = '<div class="state-msg"><span class="big">🔍</span>没有匹配的积木<br>换个关键词或风险等级试试</div>';
+    $('brick-list').innerHTML = '<div class="state-msg">没有匹配的积木<br>换个关键词或风险等级试试</div>';
     return;
   }
 
@@ -413,7 +412,7 @@ function brickCard(b, q) {
           <span class="name">${hl(b.name, q)}</span>
           <span class="ver">v${esc(b.version)}</span>
           <span class="risk ${esc(b.risk_level)}" title="${RISK_TIP[b.risk_level] || ''}">${RISK_TEXT[b.risk_level] || esc(b.risk_level)}</span>
-          <button class="add ${inSel ? 'in' : ''}" onclick="event.stopPropagation(); toggle('${esc(b.name)}')">${inSel ? '已加入 ✓' : '加入'}</button>
+          <button class="add ${inSel ? 'in' : ''}" onclick="event.stopPropagation(); toggle('${esc(b.name)}')">${inSel ? '已加入' : '加入'}</button>
         </div>
         <div class="summary">${hl(b.summary || b.description || '（无解释）', q)}</div>
         <div class="badges">

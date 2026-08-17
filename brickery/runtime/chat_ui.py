@@ -444,7 +444,7 @@ PAGE_HTML = """<!DOCTYPE html>
 <body>
 <aside id="sidebar">
   <div class="brand">
-    <div class="brand-logo">✦</div>
+    <div class="brand-logo"></div>
     <div>
       <div class="brand-name">随朴 <b>AGENT</b></div>
       <div class="brand-tag">本地桌面 Agent</div>
@@ -506,30 +506,30 @@ async function ipcStream(method, params, onDelta, onDone, onError) {
 
 /* ================= 导航 ================= */
 const NAV = [
-  { id: "chat", icon: "💬", title: "聊天" },
-  { id: "skills", icon: "✨", title: "技能库" },
-  { id: "market", icon: "🧩", title: "积木市场" },
-  { id: "cabinet", icon: "📦", title: "记忆柜" },
-  { id: "memory", icon: "🧠", title: "记忆" },
-  { id: "settings", icon: "⚙️", title: "设置" },
-  { id: "doctor", icon: "🩺", title: "医生" },
-  { id: "tasks", icon: "✅", title: "定时任务" },
-  { id: "vault", icon: "🛡️", title: "保险库" },
-  { id: "workbench", icon: "🔨", title: "工作台" },
+  { id: "chat", title: "聊天" },
+  { id: "skills", title: "技能库" },
+  { id: "market", title: "积木市场" },
+  { id: "cabinet", title: "记忆柜" },
+  { id: "memory", title: "记忆" },
+  { id: "settings", title: "设置" },
+  { id: "doctor", title: "医生" },
+  { id: "tasks", title: "定时任务" },
+  { id: "vault", title: "保险库" },
+  { id: "workbench", title: "工作台" },
 ];
 const NAV_EXT = [
-  { id: "backup", icon: "💾", title: "备份恢复" },
-  { id: "rules", icon: "📜", title: "规则" },
-  { id: "connectors", icon: "🔌", title: "连接器" },
+  { id: "backup", title: "备份恢复" },
+  { id: "rules", title: "规则" },
+  { id: "connectors", title: "连接器" },
 ];
 let currentSection = "chat";
 
 function buildNav() {
   const nav = $("navList");
   let html = "";
-  for (const n of NAV) html += '<div class="nav-item" data-sec="' + n.id + '"><span class="ico">' + n.icon + '</span><span>' + n.title + '</span></div>';
+  for (const n of NAV) html += '<div class="nav-item" data-sec="' + n.id + '"><span>' + n.title + '</span></div>';
   html += '<div class="nav-group">扩展</div>';
-  for (const n of NAV_EXT) html += '<div class="nav-item" data-sec="' + n.id + '"><span class="ico">' + n.icon + '</span><span>' + n.title + '</span></div>';
+  for (const n of NAV_EXT) html += '<div class="nav-item" data-sec="' + n.id + '"><span>' + n.title + '</span></div>';
   nav.innerHTML = html;
   nav.querySelectorAll(".nav-item").forEach(el => el.onclick = () => switchSection(el.dataset.sec));
 }
@@ -537,7 +537,7 @@ function switchSection(sec) {
   currentSection = sec;
   document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.sec === sec));
   const meta = [...NAV, ...NAV_EXT].find(n => n.id === sec);
-  $("sectionTitle").innerHTML = meta.icon + " " + meta.title;
+  $("sectionTitle").textContent = meta.title;
   const renderer = renderers[sec];
   if (renderer) renderer();
 }
@@ -631,8 +631,8 @@ async function loadSessions() {
     <div class="sess-item ${s.id === currentSessionId ? "active" : ""}" onclick="openSession('${s.id}')">
       <span class="t">${esc(s.title || "新会话")}</span>
       <span class="ops">
-        <button title="重命名" onclick="event.stopPropagation();renameSession('${s.id}')">✎</button>
-        <button title="删除" onclick="event.stopPropagation();deleteSession('${s.id}')">🗑</button>
+        <button title="重命名" onclick="event.stopPropagation();renameSession('${s.id}')">改</button>
+        <button title="删除" onclick="event.stopPropagation();deleteSession('${s.id}')">删</button>
       </span>
     </div>`).join("");
 }
@@ -1231,10 +1231,10 @@ async function runDoctor() {
   try {
     const d = await ipc("doctor", {});
     const checks = d.checks || [];
-    out.innerHTML = '<div class="row" style="margin-bottom:10px"><span class="' + (d.all_ok ? "ok-text" : "err-text") + '" style="font-weight:700">' + (d.all_ok ? "✓ 全部通过" : "✗ 存在异常") + '</span></div>' +
+    out.innerHTML = '<div class="row" style="margin-bottom:10px"><span class="' + (d.all_ok ? "ok-text" : "err-text") + '" style="font-weight:700">' + (d.all_ok ? "全部通过" : "存在异常") + '</span></div>' +
       checks.map(c => `
         <div class="check-item">
-          <span class="st ${c.ok ? "ok-text" : "err-text"}">${c.ok ? "✓" : "✗"}</span>
+          <span class="st ${c.ok ? "ok-text" : "err-text"}">${c.ok ? "通过" : "异常"}</span>
           <div><div class="nm">${esc(c.name)}</div><div class="dt">${esc(c.detail || "")}</div></div>
         </div>`).join("");
   } catch (e) { out.innerHTML = '<div class="err-text">自检失败：' + esc(e.message) + '</div>'; }

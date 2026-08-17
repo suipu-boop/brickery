@@ -33,9 +33,9 @@ def main() -> int:
     try:
         plan = asm.assemble(selected)
     except AssemblyError as e:
-        print(f"      ✗ 组装失败：{e}")
+        print(f"      [失败] 组装失败：{e}")
         return 1
-    print(f"      ✓ 组装方案：{plan.order}")
+    print(f"      [OK] 组装方案：{plan.order}")
     print(f"      资源合计：{plan.resources_total}")
 
     # 2) 产出到临时目录（不污染 ~/.brickery）
@@ -47,7 +47,7 @@ def main() -> int:
         try:
             out = produce(plan, args.vault, meta, agents_root=agents_root)
         except ProduceError as e:
-            print(f"      ✗ 产出失败：{e}")
+            print(f"      [失败] 产出失败：{e}")
             return 1
 
         # 3) 校验产出物
@@ -67,18 +67,18 @@ def main() -> int:
         run_sh = (out / "run.sh").read_text(encoding="utf-8")
         assert "brickery-runtime" in run_sh, "run.sh 未引用打包运行时"
         assert "shadeling" not in run_sh, "run.sh 仍依赖宿主 shadeling 命令"
-        print(f"      ✓ agent.json（{len(brick_files)} 个积木快照）")
-        print(f"      ✓ run.sh 启动脚本（独立运行时入口）")
-        print(f"      ✓ {args.name}.app 安装包骨架")
-        print(f"      ✓ brickery-runtime 已打包进 .app（runtime+memory）")
-        print(f"      ✓ 产出目录：{out}")
+        print(f"      [OK] agent.json（{len(brick_files)} 个积木快照）")
+        print(f"      [OK] run.sh 启动脚本（独立运行时入口）")
+        print(f"      [OK] {args.name}.app 安装包骨架")
+        print(f"      [OK] brickery-runtime 已打包进 .app（runtime+memory）")
+        print(f"      [OK] 产出目录：{out}")
 
         # 4) 列出
         print("[4/4] 产出清单")
         for a in list_agents(agents_root=agents_root):
             print(f"      - {a['name']} v{a['version']}（{a['bricks']} 积木，{a['runtime']}）")
 
-    print("\n✓ e2e 全链路通过")
+    print("\n[OK] e2e 全链路通过")
     return 0
 
 
