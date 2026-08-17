@@ -302,7 +302,9 @@ class SkillLibrary:
         if err:
             return None, err
         installed = {s.source: s for s in skills_registry.all() if s.source}
-        base = self.repo_url + "/"
+        # base 取 repo_url 所在目录（repo_url 可能是 index.json 或目录），
+        # 否则 urljoin 会把 index.json 当文件、相对路径拼错导致 404
+        base = self.repo_url.rsplit("/", 1)[0] + "/"
         out: List[LibraryEntry] = []
         items = index.get("skills") or index.get("bricks") or []
         for item in items:

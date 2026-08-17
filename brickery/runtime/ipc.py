@@ -1287,6 +1287,7 @@ class IpcServer:
             "id": e.id, "name": e.name, "version": e.version,
             "author": e.author, "summary": e.summary, "category": e.category,
             "description": e.description, "tags": e.tags, "installed_version": e.installed_version,
+            "installed": e.installed_version is not None,
         } for e in entries]
         return {"ok": True, "items": items}
 

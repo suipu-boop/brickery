@@ -33,8 +33,9 @@ final class ServiceManager {
 
     func launch(_ args: [String], env: [String: String], logName: String) {
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = ["python3"] + args
+        // P4：改调内嵌 python（Resources/python/bin/python3），不依赖系统 python3
+        p.executableURL = resources.appendingPathComponent("python/bin/python3")
+        p.arguments = args
         var e = ProcessInfo.processInfo.environment
         for (k, v) in env { e[k] = v }
         p.environment = e

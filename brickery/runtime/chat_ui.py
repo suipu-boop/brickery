@@ -508,6 +508,7 @@ async function ipcStream(method, params, onDelta, onDone, onError) {
 const NAV = [
   { id: "chat", icon: "💬", title: "聊天" },
   { id: "skills", icon: "✨", title: "技能库" },
+  { id: "market", icon: "🧩", title: "积木市场" },
   { id: "cabinet", icon: "📦", title: "记忆柜" },
   { id: "memory", icon: "🧠", title: "记忆" },
   { id: "settings", icon: "⚙️", title: "设置" },
@@ -866,6 +867,85 @@ async function triggerTool(name) {
     const d = await ipc("tool_trigger", { name, args: parsed });
     alert((d.ok ? "执行成功" : "执行失败") + "：\\n" + (d.output || "").slice(0, 500));
   } catch (e) { alert("触发失败：" + e.message); }
+}
+
+/* ================= 积木市场 ================= */
+async function renderMarket() {
+  $("content").innerHTML = '<div class="empty">加载中...</div>';
+  let items = [], err = "";
+  try {
+    const d = await ipc("skill_library_list", { force: false });
+    if (!d.ok) err = d.error || "加载失败";
+    items = d.items || [];
+  } catch (e) { err = e.message; }
+  const installed = items.filter(i => i.installed);
+  const upgradable = items.filter(i => i.installed && i.installed_version && i.version && i.installed_version !== i.version);
+  $("content").innerHTML = `
+    <div class="card">
+      <div class="row between">
+        <h3 style="margin:0">积木市场 · 热插拔</h3>
+        <div class="row">
+          <button class="btn sm" onclick="renderMarket()">刷新</button>
+        </div>
+      </div>
+      <div class="hint">已装 ${installed.length} / 共 ${items.length} 块 · 可升级 ${upgradable.length} 块 · 安装/卸载后重启生效</div>
+      ${err ? `<div class="err-text">${esc(err)}</div>` : ""}
+      <div id="marketList">
+        ${items.map(b => `
+          <div class="item-card">
+            <div class="head">
+              <span class="name">${esc(b.name)}</span>
+              <span class="tag ${b.installed ? "on" : "off"}">${b.installed ? "已装" : "未装"}</span>
+              ${b.category ? `<span class="tag">${esc(b.category)}</span>` : ""}
+              <span class="tag">v${esc(b.version || "?")}</span>
+              ${b.installed && b.installed_version && b.version && b.installed_version !== b.version ? `<span class="tag warn">可升级 ${esc(b.installed_version)}→${esc(b.version)}</span>` : ""}
+            </div>
+            ${b.summary ? `<div class="desc">${esc(b.summary)}</div>` : ""}
+            <div class="row" style="margin-top:8px">
+              ${b.installed
+                ? `<button class="btn sm danger" onclick="marketUninstall('${esc(b.id)}')">卸载</button>`
+                : `<button class="btn sm primary" onclick="marketInstall('${esc(b.id)}')">安装</button>`}
+              ${b.installed && b.installed_version && b.version && b.installed_version !== b.version
+                ? `<button class="btn sm" onclick="marketUpgrade('${esc(b.id)}')">升级</button>` : ""}
+              <button class="btn sm" onclick="marketReview('${esc(b.id)}')">详情</button>
+            </div>
+          </div>`).join("") || '<div class="empty">市场为空或未连接</div>'}
+      </div>
+    </div>`;
+}
+async function marketInstall(id) {
+  if (!confirm("安装积木 " + id + "？安装后重启生效。")) return;
+  try {
+    const d = await ipc("skill_library_install", { id });
+    if (!d.ok) { alert("安装失败：" + (d.error || "")); return; }
+    alert("已安装 " + id + "，重启后生效");
+    renderMarket();
+  } catch (e) { alert("安装失败：" + e.message); }
+}
+async function marketUninstall(id) {
+  if (!confirm("卸载积木 " + id + "？卸载后重启生效。")) return;
+  try {
+    const d = await ipc("skill_library_uninstall", { id });
+    if (!d.ok) { alert("卸载失败：" + (d.error || "")); return; }
+    alert("已卸载 " + id + "，重启后生效");
+    renderMarket();
+  } catch (e) { alert("卸载失败：" + e.message); }
+}
+async function marketUpgrade(id) {
+  try {
+    const d = await ipc("skill_library_upgrade", { id });
+    if (!d.ok) { alert("升级失败：" + (d.error || "")); return; }
+    alert("已升级 " + id + (d.to ? " → v" + d.to : "") + "，重启后生效");
+    renderMarket();
+  } catch (e) { alert("升级失败：" + e.message); }
+}
+async function marketReview(id) {
+  try {
+    const d = await ipc("skill_library_review", { id });
+    if (!d.ok) { alert("获取详情失败：" + (d.error || "")); return; }
+    const s = d.skill || {};
+    alert("【" + (s.name || id) + "】v" + (s.version || "?") + "\\n" + (s.description || s.summary || "（无描述）"));
+  } catch (e) { alert("获取详情失败：" + e.message); }
 }
 
 /* ================= 记忆柜 ================= */
@@ -1477,6 +1557,7 @@ async function setupTelegram() {
 const renderers = {
   chat: renderChat,
   skills: renderSkills,
+  market: renderMarket,
   cabinet: renderCabinet,
   memory: renderMemory,
   settings: renderSettings,

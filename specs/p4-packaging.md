@@ -174,8 +174,9 @@
 ## 状态
 
 - [x] 设计定稿（2026-08-17）
-- [ ] 下载 python-build-standalone
-- [ ] 内嵌 python + llama_cpp 验证
-- [ ] produce.py 改造
-- [ ] 重产出 + 重打 DMG 验证
-- [ ] 端到端实测
+- [x] 下载 python-build-standalone（20260814，CPython 3.12.14，arm64）
+- [x] 内嵌 python + llama_cpp 验证（0.3.34 + numpy 2.5.2，可移动性验证通过）
+- [x] produce.py 改造（_bundle_runtime 加内嵌 python、_write_run_script 改调内嵌 python、Swift 壳改调内嵌 python）
+- [x] 重产出 + 重打 DMG 验证（suipu-assistant-0.1.0.dmg 80M，挂载验证内嵌 python 可运行）
+- [x] 端到端核心验证（brickery-runtime 用内嵌 python 可运行、引擎路由零出站红线、4 块积木可执行）
+- [ ] 完整端到端实测（安装 DMG 后：API 聊天 + 本地 GGUF 规划任务 + 积木真实调用）

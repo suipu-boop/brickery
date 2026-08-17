@@ -169,22 +169,27 @@ def _write_run_script(out_dir: Path, meta: ProduceMeta) -> None:
     """
     script = f"""#!/bin/bash
 # {meta.name} —— 由 Brickery 产出的独立 agent
-# 启动入口：.app 内打包的 brickery-runtime，不依赖宿主运行时
+# 启动入口：.app 内打包的 brickery-runtime + 内嵌 python，不依赖宿主运行时
 set -euo pipefail
 AGENT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$(ls -d "$AGENT_DIR"/*.app 2>/dev/null | head -1 || true)"
 RUNTIME_DIR="$APP_DIR/Contents/Resources/brickery-runtime"
+PYTHON_BIN="$APP_DIR/Contents/Resources/python/bin/python3"
 if [ -z "$APP_DIR" ] || [ ! -d "$RUNTIME_DIR" ]; then
   echo "[{meta.name}] 错误：未找到打包运行时（$RUNTIME_DIR）" >&2
   exit 1
 fi
-echo "[{meta.name}] 启动（独立运行时）"
+if [ ! -x "$PYTHON_BIN" ]; then
+  echo "[{meta.name}] 错误：未找到内嵌 python（$PYTHON_BIN）" >&2
+  exit 1
+fi
+echo "[{meta.name}] 启动（独立运行时 + 内嵌 python）"
 export PYTHONPATH="$RUNTIME_DIR"
 export BRICKERY_NO_WATCHDOG=1
 # 后台拉起 IPC、安装引导与聊天界面（复用底座），按是否已配置打开对应页
-nohup python3 -m brickery.runtime.ipc --home "$AGENT_DIR" > "$AGENT_DIR/ipc.log" 2>&1 &
-BRICKERY_HOME="$AGENT_DIR" nohup python3 -m brickery.runtime.setup_wizard > "$AGENT_DIR/setup_wizard.log" 2>&1 &
-BRICKERY_HOME="$AGENT_DIR" nohup python3 -m brickery.runtime.chat_ui > "$AGENT_DIR/chat_ui.log" 2>&1 &
+nohup "$PYTHON_BIN" -m brickery.runtime.ipc --home "$AGENT_DIR" > "$AGENT_DIR/ipc.log" 2>&1 &
+BRICKERY_HOME="$AGENT_DIR" nohup "$PYTHON_BIN" -m brickery.runtime.setup_wizard > "$AGENT_DIR/setup_wizard.log" 2>&1 &
+BRICKERY_HOME="$AGENT_DIR" nohup "$PYTHON_BIN" -m brickery.runtime.chat_ui > "$AGENT_DIR/chat_ui.log" 2>&1 &
 sleep 2
 if [ -f "$AGENT_DIR/config.json" ]; then
   open "http://127.0.0.1:18767/" 2>/dev/null || true
@@ -373,6 +378,28 @@ def _bundle_runtime(resources: Path) -> None:
     shutil.copytree(
         src, dst,
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "tests", "fixtures", "web"),
+    )
+    # P4：内嵌 python（含 llama_cpp）随包携带，目标机无系统 python3 也能启动
+    _bundle_embedded_python(resources)
+
+
+def _bundle_embedded_python(resources: Path) -> None:
+    """把内嵌 python（python-build-standalone + llama_cpp）复制进 Resources/python/。
+
+    来源：项目 temp/python（已用内嵌 pip 装好 llama-cpp-python==0.3.34 + numpy）。
+    目标机无系统 python3 也能启动；运行时零 pip 安装、零编译。
+    """
+    src = Path(__file__).resolve().parents[1] / "temp" / "python"
+    if not (src / "bin" / "python3").exists():
+        raise ProduceError(
+            f"未找到内嵌 python（{src}）。请先按 specs/p4-packaging.md §6 步骤 1-3 "
+            "下载 python-build-standalone 并用内嵌 pip 安装 llama-cpp-python。")
+    dst = resources / "python"
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(
+        src, dst,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
     )
 
 

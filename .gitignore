@@ -20,3 +20,6 @@ brickery/fixtures/skill_repo/bin/editor_sdk
 
 # SwiftPM build artifacts
 app/.build/
+
+# 中间产物
+/temp/
