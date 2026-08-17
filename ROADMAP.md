@@ -41,6 +41,16 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - B5 服务层已迁入（ipc / daemon / sessions / scheduler / gateway / confirm / interoception/ + loop），195 单测通过；test_surfacing 迁回，memory 69 单测通过
 - B6 产出链路已完成：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令；e2e 全链路通过，全量单测 263 passed + 1 skipped
 
+## 今日进度（2026-08-17）
+
+- **工坊界面交互重设计**（commit `71f8b88`，已 push）：积木库点击即选中转移组装区（renderBrickList 过滤 selected），chip 点击展开/缩回详情；方案见 `specs/workbench_ui_redesign.md`
+- **engine 作底座默认能力**（commit `0c3c4a5`，已 push）：/api/bricks 单独返回 engines，BRICK_TIERS 移除 builtin；方案见 `specs/web-workbench-app.md`
+- **产出路径写死桌面**（commit `31ae324`，已 push）：produce.py DEFAULT_AGENTS_ROOT → `/Users/suipu/Desktop`，产出 agent 安装包一律放桌面
+- **积木平台打包为独立 app**：BrickeryWorkbench.app（267M）+ BrickeryWorkbench-0.1.0.dmg（104M），已上传 GitHub Release v0.1.0；脚本 `scripts/build_workbench_app.sh`
+- **工坊积木库同步入口**（commit `c603f8f`，已 push）：header 加「从 GitHub 同步」按钮 + 积木库 commit/更新时间显示，产出前自动 sync_all（失败静默降级本地缓存）；方案见 `specs/sync-button.md`
+- **积木库缓存同步修复**：brick-vault 12 块 brick.json 改动提交推送（`d68a0bf`），重置 `~/.brickery/vault` 与 `~/.brickery/base` 到 GitHub 最新，同步链路干净可用
+- **测试路径（主工作线路）**：本地装积木工坊 app → 产出带安装引导的 agent 安装包 → 用户自测 → 反馈修改点 → 定位（工坊/底座/小积木）→ 修理
+
 ## 今日进度（2026-08-16）
 
 - **底座实施完成（commit `af7d401`，已 push）**：
@@ -120,13 +130,13 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 4. **P6 积木市场**：BrickMarket 已就绪，接 web 工作台热插拔——待启动
 5. **白皮书定位**：保持内部规划文档（不硬塞商业化蓝本）；商业化蓝本另开 `docs/whitepaper.md` 一事——用户：不着急，不分心，暂缓
 
-## 下一步（2026-08-17 续做）
+## 下一步（2026-08-18 续做）
 
-1. **重产出 suipu-assistant**：内嵌 runtime 缺 4 块实现文件（feishu/telegram/ax/visualize），需重走 web 工作台产出 + 重打 DMG 到桌面验证
-2. **端到端实测**：聊天页实际对话全链路（引导配置 → 聊天 → 积木调用）
-3. **P6 积木市场**：BrickMarket 接 web 工作台热插拔（brick-vault 在线浏览/安装）
-4. **browser 积木收尾**：Chrome 扩展需用户手动安装后方能完整使用
-5. **拼装、跑起来完整链路测试**（用户预期还需数日）
+1. **用户测试安装**：从 GitHub Release v0.1.0 下载 dmg 重装验证（今天已下载 104M 到本地，明天测试安装）
+2. **工坊产出 agent 安装包**：走 web 工作台选积木 → 组装 → 产出（路径写死桌面），验证同步按钮与产出链路
+3. **端到端实测**：安装产出 agent → 引导配置 → 聊天 → 积木调用全链路
+4. **P6 积木市场**：BrickMarket 接 web 工作台热插拔（brick-vault 在线浏览/安装）
+5. **browser 积木收尾**：Chrome 扩展需用户手动安装后方能完整使用
 
 > 新会话唤醒句：继续 /Users/suipu/Dev/brickery 的积木平台，先读 ROADMAP.md 对齐阶段。
 
