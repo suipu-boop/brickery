@@ -110,8 +110,9 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             self._json({"error": str(e)}, status=400)
             return
         bricks = []
+        engines = []
         for name, b in sorted(asm.bricks.items()):
-            bricks.append({
+            item = {
                 "name": b.name,
                 "version": b.version,
                 "risk_level": b.risk_level,
@@ -125,8 +126,12 @@ class BrickeryHandler(BaseHTTPRequestHandler):
                 "tags": b.tags,
                 "capabilities": b.capabilities,
                 "dependencies": b.dependencies,
-            })
-        self._json({"bricks": bricks})
+            }
+            if b.category == "engine":
+                engines.append(item)  # engine 为底座默认能力，单独返回供底座区展示
+            else:
+                bricks.append(item)
+        self._json({"bricks": bricks, "engines": engines})
 
     def _api_assemble(self, body: dict) -> None:
         selected = body.get("selected") or []

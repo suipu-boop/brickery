@@ -14,6 +14,25 @@ let configPath = dataDir.appendingPathComponent("config.json")
 
 let GUIDE_URL = "http://127.0.0.1:18766/"
 let CHAT_URL = "http://127.0.0.1:18767/"
+let WORKBENCH_URL = "http://127.0.0.1:8765/"
+
+// MARK: - 运行模式（积木工作台 / suipu-assistant 三服务）
+enum RunMode {
+    case assistant   // 三服务模式：ipc 18765 / setup_wizard 18766 / chat_ui 18767
+    case workbench   // 积木工作台模式：web.server 8765
+}
+
+func detectRunMode() -> RunMode {
+    // 1) 命令行参数优先：--workbench / --assistant
+    let args = CommandLine.arguments
+    if args.contains("--workbench") { return .workbench }
+    if args.contains("--assistant") { return .assistant }
+    // 2) 环境变量 BRICKERY_WORKBENCH=1
+    if ProcessInfo.processInfo.environment["BRICKERY_WORKBENCH"] == "1" { return .workbench }
+    // 3) 按 bundleIdentifier 推断：dev.brickery.workbench → 积木工作台
+    if let bid = Bundle.main.bundleIdentifier, bid.contains("workbench") { return .workbench }
+    return .assistant
+}
 
 // MARK: - 服务管理
 final class ServiceManager {
@@ -75,6 +94,22 @@ final class ServiceManager {
         NSLog("BrickeryApp: start() 完成，children=\(children.count)")
     }
 
+    func startWorkbench() {
+        NSLog("BrickeryApp: startWorkbench() 开始")
+        try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+        let env: [String: String] = [
+            "PYTHONPATH": runtimeDir.path,
+            "BRICKERY_NO_WATCHDOG": "1",
+            "BRICKERY_HOME": dataDir.path,
+        ]
+        if !portInUse(8765) {
+            NSLog("BrickeryApp: 启动积木工作台 web.server")
+            launch(["-m", "brickery.web.server", "--port", "8765"],
+                   env: env, logName: "web.log")
+        }
+        NSLog("BrickeryApp: startWorkbench() 完成，children=\(children.count)")
+    }
+
     func stop() {
         for p in children { p.terminate() }
     }
@@ -83,11 +118,18 @@ final class ServiceManager {
 // MARK: - App Delegate
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let services = ServiceManager()
+    var mode: RunMode = .assistant
     var window: NSWindow!
     var webView: WKWebView!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        services.start()
+        mode = detectRunMode()
+        if mode == .workbench {
+            window.title = "积木工作台"
+            services.startWorkbench()
+        } else {
+            services.start()
+        }
         // 等服务起来再加载页面
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.openPage()
@@ -95,8 +137,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func openPage() {
-        let configured = FileManager.default.fileExists(atPath: configPath.path)
-        let url = URL(string: configured ? CHAT_URL : GUIDE_URL)!
+        let url: URL
+        switch mode {
+        case .workbench:
+            url = URL(string: WORKBENCH_URL)!
+        case .assistant:
+            let configured = FileManager.default.fileExists(atPath: configPath.path)
+            url = URL(string: configured ? CHAT_URL : GUIDE_URL)!
+        }
         webView.load(URLRequest(url: url))
     }
 

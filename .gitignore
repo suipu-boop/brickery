@@ -23,3 +23,6 @@ app/.build/
 
 # 中间产物
 /temp/
+
+# 打包产物（.app/.dmg 不入库）
+/output/
