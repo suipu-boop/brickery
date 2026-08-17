@@ -64,7 +64,7 @@
 
   /* ============ 三栏布局 ============ */
   main {
-    display: grid; grid-template-columns: 340px 1fr 340px; gap: 16px;
+    display: grid; grid-template-columns: 360px 1fr 340px; gap: 16px;
     padding: 18px 24px; align-items: start;
   }
   @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
@@ -103,6 +103,24 @@
   .filters button:hover { border-color: var(--amber); color: var(--ink); }
   .filters button.on { background: var(--amber); border-color: var(--amber); color: #fff; }
 
+  /* 分类导航条 */
+  .cat-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cat-tabs button {
+    border: 1px solid var(--line-strong); background: var(--paper);
+    color: var(--ink-soft); border-radius: 20px; padding: 3px 10px;
+    font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .cat-tabs button:hover { border-color: var(--amber); color: var(--ink); }
+  .cat-tabs button.on { background: var(--amber); border-color: var(--amber); color: #fff; }
+  .cat-tabs .t-count { font-size: 10px; opacity: .75; margin-left: 2px; }
+  .cat-tools { display: flex; gap: 10px; }
+  .cat-tools button {
+    border: none; background: none; color: var(--ink-faint);
+    font-size: 11px; cursor: pointer; font-family: inherit; padding: 0;
+    text-decoration: underline dotted;
+  }
+  .cat-tools button:hover { color: var(--amber); }
+
   #brick-list { overflow-y: auto; max-height: 72vh; display: flex; flex-direction: column; gap: 10px; }
   .cat-group { display: flex; flex-direction: column; gap: 6px; }
   .cat-head {
@@ -114,9 +132,11 @@
   .cat-head.collapsed .arrow { transform: rotate(-90deg); }
   .cat-head .cat-count { font-size: 11px; color: var(--ink-faint); font-weight: 400; }
   .cat-head:hover { color: var(--ink); }
-  .cat-body { display: flex; flex-direction: column; gap: 6px; }
+  .cat-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .cat-head.collapsed + .cat-body { display: none; }
+  @media (max-width: 1300px) { .cat-body { grid-template-columns: 1fr; } }
 
+  /* 紧凑积木卡片 */
   .brick {
     border: 1px solid var(--line); border-left: 4px solid var(--line-strong);
     border-radius: 8px; background: var(--paper);
@@ -124,22 +144,22 @@
     overflow: hidden;
   }
   .brick:hover { border-color: var(--amber); box-shadow: var(--shadow); transform: translateY(-1px); }
-  .brick .head { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
-  .brick .row1 { display: flex; align-items: center; gap: 8px; }
-  .brick .name { font-weight: 700; font-size: 14px; }
-  .brick .ver { font-size: 11px; color: var(--ink-faint); }
-  .brick .summary { font-size: 12px; color: var(--ink-soft); }
-  .brick .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-  .brick .add {
-    margin-left: auto; border: 1px solid var(--amber); background: transparent;
-    color: var(--amber); border-radius: 6px; padding: 3px 10px; font-size: 12px;
-    cursor: pointer; font-family: inherit; white-space: nowrap;
+  .brick .head { padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; }
+  .brick .row1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .brick .name {
+    font-weight: 700; font-size: 13px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; min-width: 0;
   }
-  .brick .add:hover { background: var(--amber); color: #fff; }
-  .brick .add.in { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .brick .ver { font-size: 10px; color: var(--ink-faint); }
+  .brick .row2 { display: flex; align-items: center; gap: 6px; }
+  .brick .summary {
+    font-size: 11px; color: var(--ink-soft);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .brick .detail {
     display: none; border-top: 1px dashed var(--line);
-    padding: 8px 10px; font-size: 12px; color: var(--ink-soft);
+    padding: 8px 9px; font-size: 12px; color: var(--ink-soft);
     background: var(--card); flex-direction: column; gap: 6px;
   }
   .brick.open .detail { display: flex; }
@@ -167,18 +187,56 @@
   /* ============ 组装区 ============ */
   #assembly { min-height: 200px; display: flex; flex-direction: column; gap: 8px; }
   .empty {
-    color: var(--ink-faint); text-align: center; padding: 40px 12px;
+    color: var(--ink-faint); text-align: center; padding: 30px 12px;
     border: 2px dashed var(--line-strong); border-radius: 8px; font-size: 13px;
   }
   .empty .big { font-size: 26px; display: block; margin-bottom: 6px; }
   #assembly-list { display: flex; flex-direction: column; gap: 6px; }
-  .chip {
-    display: flex; align-items: center; gap: 8px;
-    border: 1px solid var(--line); border-left: 4px solid var(--line-strong);
-    border-radius: 8px; padding: 8px 10px; background: var(--paper);
+
+  /* 底座区块 */
+  .base-panel {
+    border: 2px dashed var(--line-strong); border-radius: 8px;
+    background: var(--paper-deep); padding: 8px 10px;
+    display: flex; flex-direction: column; gap: 6px;
   }
-  .chip .c-name { font-weight: 600; }
-  .chip .c-deps { font-size: 11px; color: var(--ink-faint); }
+  .base-head {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; color: var(--ink-soft);
+    cursor: pointer; user-select: none;
+  }
+  .base-head .arrow { transition: transform .15s; font-size: 10px; color: var(--ink-faint); }
+  .base-panel.collapsed .base-head .arrow { transform: rotate(-90deg); }
+  .base-panel.collapsed .base-body { display: none; }
+  .base-tag {
+    margin-left: auto; font-size: 10px; color: var(--ok);
+    border: 1px solid var(--ok); border-radius: 10px; padding: 0 6px;
+    font-weight: 600;
+  }
+  .base-tip { font-size: 11px; color: var(--ink-faint); }
+  .base-options { display: flex; flex-direction: column; gap: 6px; }
+  .base-opt {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+    background: var(--card); cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .base-opt:hover { border-color: var(--amber); }
+  .base-opt.on { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+  .base-opt .b-name { font-weight: 700; font-size: 13px; }
+  .base-opt .b-sum { font-size: 11px; color: var(--ink-soft); flex-basis: 100%; }
+
+  .chip {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    border: 1px solid var(--line); border-left: 4px solid var(--line-strong);
+    border-radius: 8px; padding: 6px 8px; background: var(--paper);
+    cursor: pointer; transition: border-color .15s, box-shadow .15s;
+  }
+  .chip:hover { border-color: var(--amber); }
+  .chip .c-name { font-weight: 600; font-size: 13px; }
+  .chip .c-deps {
+    font-size: 11px; color: var(--ink-faint);
+    max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .chip .rm {
     margin-left: auto; border: none; background: none; color: var(--ink-faint);
     cursor: pointer; font-size: 16px; line-height: 1;
@@ -189,6 +247,19 @@
     color: #fff; font-size: 11px; display: inline-flex; align-items: center;
     justify-content: center; flex-shrink: 0;
   }
+  .chip .c-detail {
+    display: none; flex-basis: 100%; border-top: 1px dashed var(--line);
+    padding: 6px 2px 2px; font-size: 11px; color: var(--ink-soft);
+    flex-direction: column; gap: 4px;
+  }
+  .chip.open .c-detail { display: flex; }
+  .chip .c-detail .d-label { font-weight: 700; color: var(--ink); font-size: 11px; }
+  .chip .c-detail .tag {
+    background: var(--paper-deep); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: 10px; color: var(--ink-soft);
+  }
+  .chip .c-detail .cap { font-family: ui-monospace, Menlo, monospace; }
+  .chip .c-detail .missing { color: var(--bad); }
 
   /* ============ 方案与产出 ============ */
   .meta { display: flex; flex-direction: column; gap: 8px; }
@@ -277,6 +348,11 @@
         <button data-r="high">高风险</button>
       </div>
     </div>
+    <div class="cat-tabs" id="cat-tabs"></div>
+    <div class="cat-tools">
+      <button onclick="expandAll()">全部展开</button>
+      <button onclick="collapseAll()">全部折叠</button>
+    </div>
     <div id="brick-list"></div>
   </section>
 
@@ -284,8 +360,19 @@
   <section class="panel">
     <h2>组装区 <span class="count" id="sel-count">0</span></h2>
     <div id="assembly">
+      <div class="base-panel" id="base-panel">
+        <div class="base-head" onclick="toggleBase()">
+          <span class="arrow">▼</span>底座 · 推理引擎
+          <span class="base-tag">内核自带</span>
+        </div>
+        <div class="base-body">
+          <div class="base-tip">每个 agent 自带推理底座，选择引擎后参与组装与资源核算</div>
+          <div class="base-options" id="base-options"></div>
+        </div>
+      </div>
       <div class="empty" id="empty-hint">
-                从左侧点「加入」或点积木卡片，开始拼装你的 agent
+        <span class="big">底座已就位</span>
+        从左侧点积木卡片，选中后即转移到组装区
       </div>
       <div id="assembly-list"></div>
     </div>
@@ -315,9 +402,13 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let bricks = [];
+let engines = [];
 let selected = new Set();
 let riskFilter = 'all';
+let catFilter = 'all';
 let collapsedCats = new Set();
+let engineChoice = 'engine-local';
+let baseCollapsed = false;
 
 const RISK_TEXT = { low: '低风险', mid: '中风险', high: '高风险' };
 const RISK_TIP = { low: '只读 / 本地操作', mid: '需联网或写文件', high: '操作本机 / 浏览器' };
@@ -345,7 +436,9 @@ async function loadBricks() {
     const r = await fetch('/api/bricks');
     const data = await r.json();
     if (data.error) throw new Error(data.error);
-    bricks = data.bricks;
+    bricks = data.bricks || [];
+    engines = data.engines || [];
+    renderBase();
     renderBrickList();
   } catch (e) {
     $('brick-list').innerHTML =
@@ -354,11 +447,32 @@ async function loadBricks() {
   }
 }
 
-/* ============ 渲染积木库（分类分组 + 搜索 + 风险筛选） ============ */
+/* ============ 分类导航条 ============ */
+function renderCatTabs() {
+  const cats = ['all', ...new Set(bricks.map(b => b.category || '未分类'))];
+  $('cat-tabs').innerHTML = cats.map(c => {
+    const label = c === 'all' ? '全部' : c;
+    const count = c === 'all' ? bricks.length
+      : bricks.filter(b => (b.category || '未分类') === c).length;
+    return `<button class="${catFilter === c ? 'on' : ''}" onclick="setCat('${esc(c)}')">${esc(label)}<span class="t-count">${count}</span></button>`;
+  }).join('');
+}
+
+function setCat(c) { catFilter = c; renderBrickList(); }
+
+function expandAll() { collapsedCats.clear(); renderBrickList(); }
+function collapseAll() {
+  collapsedCats = new Set(bricks.map(b => b.category || '未分类'));
+  renderBrickList();
+}
+
+/* ============ 渲染积木库（分类折叠 + 网格 + 搜索 + 筛选） ============ */
 function renderBrickList() {
   const q = $('search').value.trim().toLowerCase();
   const list = bricks.filter(b => {
     if (riskFilter !== 'all' && b.risk_level !== riskFilter) return false;
+    if (catFilter !== 'all' && (b.category || '未分类') !== catFilter) return false;
+    if (selected.has(b.name)) return false; // 已选中的积木转移到组装区，从积木库消失
     if (!q) return true;
     return (b.name || '').toLowerCase().includes(q)
         || (b.summary || '').toLowerCase().includes(q)
@@ -367,13 +481,14 @@ function renderBrickList() {
   });
 
   $('brick-count').textContent = list.length + ' / ' + bricks.length;
+  renderCatTabs();
 
   if (!bricks.length) {
     $('brick-list').innerHTML = '<div class="state-msg">积木库为空</div>';
     return;
   }
   if (!list.length) {
-    $('brick-list').innerHTML = '<div class="state-msg">没有匹配的积木<br>换个关键词或风险等级试试</div>';
+    $('brick-list').innerHTML = '<div class="state-msg">没有匹配的积木<br>换个关键词、分类或风险等级试试</div>';
     return;
   }
 
@@ -400,24 +515,21 @@ function renderBrickList() {
 }
 
 function brickCard(b, q) {
-  const inSel = selected.has(b.name);
   const deps = (b.requires || []).map(d =>
     selected.has(d) ? `<b>${esc(d)}</b>` : `<b class="missing">${esc(d)}</b>`).join('、') || '无';
   const extDeps = (b.dependencies || []).map(d =>
     `${esc(d.name)}${d.version && d.version !== '*' ? ' ' + esc(d.version) : ''}`).join('、');
   return `
-    <div class="brick ${inSel ? 'open' : ''}" onclick="toggleDetail('${esc(b.name)}')">
+    <div class="brick" onclick="toggleSelect('${esc(b.name)}')">
       <div class="head">
         <div class="row1">
-          <span class="name">${hl(b.name, q)}</span>
-          <span class="ver">v${esc(b.version)}</span>
+          <span class="name" title="${esc(b.name)}">${hl(b.name, q)}</span>
+        </div>
+        <div class="row2">
           <span class="risk ${esc(b.risk_level)}" title="${RISK_TIP[b.risk_level] || ''}">${RISK_TEXT[b.risk_level] || esc(b.risk_level)}</span>
-          <button class="add ${inSel ? 'in' : ''}" onclick="event.stopPropagation(); toggle('${esc(b.name)}')">${inSel ? '已加入' : '加入'}</button>
+          <span class="ver">v${esc(b.version)}</span>
         </div>
-        <div class="summary">${hl(b.summary || b.description || '（无解释）', q)}</div>
-        <div class="badges">
-          ${(b.tags || []).slice(0, 4).map(t => `<span class="tag">${hl(t, q)}</span>`).join('')}
-        </div>
+        <div class="summary" title="${esc(b.summary || b.description || '（无解释）')}">${hl(b.summary || b.description || '（无解释）', q)}</div>
       </div>
       <div class="detail">
         <div><span class="d-label">说明</span><div class="d-desc">${esc(b.description || '（无）')}</div></div>
@@ -436,16 +548,41 @@ function toggleCat(cat) {
   renderBrickList();
 }
 
-function toggleDetail(name) {
-  const el = document.querySelector(`.brick .name`);
-  // 通过 data 标记切换展开态：用 class 控制
-  const card = event.currentTarget;
-  card.classList.toggle('open');
+function toggleSelect(name) {
+  selected.add(name);
+  renderAssembly();
+  renderBrickList();
+  checkPlan();
+}
+
+/* ============ 底座（推理引擎） ============ */
+function renderBase() {
+  if (!engines.length) {
+    $('base-options').innerHTML = '<div class="base-tip">（未发现引擎积木）</div>';
+    return;
+  }
+  $('base-options').innerHTML = engines.map(e => `
+    <div class="base-opt ${engineChoice === e.name ? 'on' : ''}" onclick="pickEngine('${esc(e.name)}')">
+      <span class="b-name">${esc(e.name)}</span>
+      <span class="risk ${esc(e.risk_level)}" title="${RISK_TIP[e.risk_level] || ''}">${RISK_TEXT[e.risk_level] || esc(e.risk_level)}</span>
+      <span class="b-sum">${esc(e.summary)}</span>
+    </div>`).join('');
+}
+
+function pickEngine(name) {
+  engineChoice = name;
+  renderBase();
+  checkPlan();
+}
+
+function toggleBase() {
+  baseCollapsed = !baseCollapsed;
+  $('base-panel').classList.toggle('collapsed', baseCollapsed);
 }
 
 /* ============ 组装区 ============ */
-function toggle(name) {
-  if (selected.has(name)) selected.delete(name); else selected.add(name);
+function removeSelect(name) {
+  selected.delete(name);
   renderAssembly();
   renderBrickList();
   checkPlan();
@@ -458,35 +595,43 @@ function renderAssembly() {
   $('assembly-list').innerHTML = arr.map((name, i) => {
     const b = bricks.find(x => x.name === name);
     if (!b) return '';
-    const deps = (b.requires || []).filter(d => selected.has(d));
-    return `<div class="chip">
+    const deps = (b.requires || []).map(d =>
+      selected.has(d) ? esc(d) : `<b class="missing">${esc(d)}</b>`).join('、') || '无';
+    const extDeps = (b.dependencies || []).map(d =>
+      `${esc(d.name)}${d.version && d.version !== '*' ? ' ' + esc(d.version) : ''}`).join('、');
+    return `<div class="chip" onclick="toggleChip('${esc(name)}')">
       <span class="order-no">${i + 1}</span>
       <span class="c-name">${esc(name)}</span>
       <span class="risk ${esc(b.risk_level)}" title="${RISK_TIP[b.risk_level] || ''}">${RISK_TEXT[b.risk_level] || esc(b.risk_level)}</span>
-      ${deps.length ? `<span class="c-deps">依赖 ${deps.map(esc).join('、')}</span>` : ''}
-      <button class="rm" onclick="toggle('${esc(name)}')" title="移除">×</button>
+      ${(b.requires || []).length ? `<span class="c-deps">依赖 ${deps}</span>` : ''}
+      <button class="rm" onclick="event.stopPropagation(); removeSelect('${esc(name)}')" title="移除">×</button>
+      <div class="c-detail">
+        <div><span class="d-label">说明</span> ${esc(b.description || b.summary || '（无）')}</div>
+        ${(b.tags || []).length ? `<div><span class="d-label">标签</span> ${(b.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join(' ')}</div>` : ''}
+        ${(b.capabilities || []).length ? `<div><span class="d-label">能力</span> ${(b.capabilities || []).map(c => `<span class="cap tag">${esc(c)}</span>`).join(' ')}</div>` : ''}
+        <div><span class="d-label">积木依赖</span> ${deps}</div>
+        ${extDeps ? `<div><span class="d-label">外部依赖</span> ${esc(extDeps)}</div>` : ''}
+        <div><span class="d-label">资源</span> 内存 ${esc(b.resources.memory_mb || 0)}MB · 磁盘 ${esc(b.resources.disk_mb || 0)}MB${b.resources.network ? ' · 需联网' : ''}</div>
+      </div>
     </div>`;
   }).join('');
 }
 
-/* ============ 方案校验 ============ */
+function toggleChip(name) {
+  const chip = event.currentTarget;
+  chip.classList.toggle('open');
+}
+
+/* ============ 方案校验（含底座引擎） ============ */
 async function checkPlan() {
   $('error').textContent = '';
   $('result').textContent = '';
-  if (!selected.size) {
-    $('plan-order').textContent = '（未组装）';
-    $('plan-res').innerHTML = '';
-    $('produce-btn').disabled = true;
-    $('step2').classList.remove('active');
-    $('step3').classList.remove('active');
-    return;
-  }
-  $('step2').classList.add('active');
+  const sel = [...selected, engineChoice];
   try {
     const r = await fetch('/api/assemble', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selected: [...selected] })
+      body: JSON.stringify({ selected: sel })
     });
     const data = await r.json();
     if (!data.ok) {
@@ -503,7 +648,14 @@ async function checkPlan() {
       <span class="item">内存预算 <b>${res.memory_mb}MB</b></span>
       <span class="item">磁盘预算 <b>${res.disk_mb}MB</b></span>
       <span class="item">端口 <b>${res.ports.join(',') || '无'}</b></span>`;
-    $('produce-btn').disabled = false;
+    if (!selected.size) {
+      $('produce-btn').disabled = true;
+      $('step2').classList.remove('active');
+      $('step3').classList.remove('active');
+    } else {
+      $('step2').classList.add('active');
+      $('produce-btn').disabled = false;
+    }
   } catch (e) {
     $('error').textContent = '校验请求失败：' + e.message;
     $('produce-btn').disabled = true;
@@ -521,7 +673,7 @@ async function produce() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        selected: [...selected],
+        selected: [...selected, engineChoice],
         name,
         description: $('agent-desc').value.trim()
       })
@@ -578,10 +730,12 @@ async function makeDmg() {
 
 function resetAll() {
   selected.clear();
+  engineChoice = 'engine-local';
   $('agent-name').value = '';
   $('agent-desc').value = '';
   $('result').textContent = '';
   $('error').textContent = '';
+  renderBase();
   renderAssembly();
   renderBrickList();
   checkPlan();
