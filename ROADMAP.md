@@ -130,6 +130,14 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 4. **P6 积木市场**：BrickMarket 已就绪，接 web 工作台热插拔——待启动
 5. **白皮书定位**：保持内部规划文档（不硬塞商业化蓝本）；商业化蓝本另开 `docs/whitepaper.md` 一事——用户：不着急，不分心，暂缓
 
+## 待拍板事项（2026-08-18 记录）
+
+1. **积木加工厂（Brickery Factory）**：定位已确认（工坊=消费积木，加工厂=生产积木），
+   形态选独立 web 面板（端口 8767），实施顺序：脚手架+验证器 → 编辑器 → 发布同步；
+   规划见 `specs/brick-factory.md`——用户：不急着动手，待启动
+2. **好玩积木方向**：平台可扩展性证明——任何能力都能做成积木，含娱乐向
+   （如内置小游戏：贪吃蛇/2048/扫雷，做成 ServiceBrick），随时可做——待用户发想
+
 ## 下一步（2026-08-18 续做）
 
 1. **用户测试安装**：从 GitHub Release v0.1.0 下载 dmg 重装验证（今天已下载 104M 到本地，明天测试安装）
@@ -145,5 +153,5 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - 平台代码：`/Users/suipu/Dev/brickery`
 - 心脏来源：`/Users/suipu/Dev/Shadeling/runtime/`（迁移源）
 - 积木库：`/Users/suipu/Dev/brick-vault`（不动）
-- 规划文档：`specs/brickery.md`（平台规划）、`specs/rectify.md`（定位纠偏）、`specs/p3-runtime.md`（阶段二规划）
+- 规划文档：`specs/brickery.md`（平台规划）、`specs/rectify.md`（定位纠偏）、`specs/p3-runtime.md`（阶段二规划）、`specs/brick-factory.md`（积木加工厂规划）
 *（内容由AI生成，仅供参考）*
