@@ -258,6 +258,11 @@ PAGE_HTML = """<!DOCTYPE html>
   }
   .card h3 { font-size: 13px; margin-bottom: 10px; color: var(--accent); letter-spacing: 1px; }
   .card .hint { font-size: 11px; color: var(--dim); margin-bottom: 10px; }
+  .section-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: rgba(255,255,255,0.02); }
+  .section-card > h3 { font-size: 12px; color: var(--accent); letter-spacing: 1.5px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .section-card .sec-sub { font-size: 11px; color: var(--dim); margin-bottom: 10px; }
+  .settings-wrap { max-width: 860px; }
+  .backend-btn { min-width: 110px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
   @media (max-width: 1100px) { .grid3 { grid-template-columns: 1fr 1fr; } }
@@ -1358,56 +1363,90 @@ async function renderSettings() {
   const eng = cfg.engine || {};
   apiProfiles = (cfg.profiles || []).filter(p => p && p.id);
   apiActiveId = cfg.active_profile_id || "";
+  const backend = eng.backend === "local" ? "local" : "api";
   $("content").innerHTML = `
-    <div class="grid2">
-      <div class="card">
-        <h3>引擎配置</h3>
+    <div class="settings-wrap">
+      <div class="section-card">
+        <h3>引擎状态</h3>
         <div class="engine-status">
           <div class="status-row"><span class="dot" id="stLocalDot"></span><span id="stLocalText">本地模型：检测中...</span></div>
           <div class="status-row"><span class="dot" id="stApiDot"></span><span id="stApiText">网络 API：检测中...</span></div>
         </div>
-        <div class="field"><label>后端</label>
-          <select id="cfgBackend">
-            <option value="api" ${eng.backend === "api" ? "selected" : ""}>网络 API</option>
-            <option value="local" ${eng.backend === "local" ? "selected" : ""}>本地 GGUF</option>
-          </select>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm" onclick="renderEngineStatus()">刷新状态</button>
+          <span class="muted">只做本地探测，不发任何试探请求</span>
         </div>
-        <div class="field"><label>本地模型</label>
+      </div>
+
+      <div class="section-card">
+        <h3>后端选择</h3>
+        <div class="row" style="gap:10px">
+          <button class="btn backend-btn ${backend === "local" ? "primary" : ""}" id="btnBackendLocal" onclick="setBackend('local')">本地 GGUF</button>
+          <button class="btn backend-btn ${backend === "api" ? "primary" : ""}" id="btnBackendApi" onclick="setBackend('api')">网络 API</button>
+        </div>
+        <select id="cfgBackend" style="display:none">
+          <option value="api" ${eng.backend === "api" ? "selected" : ""}>网络 API</option>
+          <option value="local" ${eng.backend === "local" ? "selected" : ""}>本地 GGUF</option>
+        </select>
+        <div class="hint" style="margin-top:8px">本地 GGUF 为默认内嵌引擎；网络 API 仅在你主动填写端点时连接，且只连你指定的地址。</div>
+      </div>
+
+      <div class="section-card" id="secLocal">
+        <h3>本地模型</h3>
+        <div class="field"><label>本地模型路径</label>
           <div class="row">
             <input id="cfgLocal" value="${esc(eng.local_model || "")}" placeholder="模型路径">
             <button class="btn sm" onclick="pickLocalModel()">选择</button>
           </div>
         </div>
-        <div class="row">
-          <button class="btn primary" onclick="saveConfig()">保存配置</button>
-          <span class="muted">数据目录：${esc(cfg.home || "")}</span>
-        </div>
-      </div>
-      <div>
-        <div class="card">
-          <h3>网络 API 预设</h3>
-          <div class="hint">每个 API 一张卡片，可编辑/删除；「默认」为当前生效预设</div>
-          <div id="apiCards"></div>
-          <div class="row" style="margin-top:10px">
-            <button class="btn sm primary" onclick="openApiModal()">＋ 新建 API</button>
-            <button class="btn sm" onclick="openApiModal('coding')">＋ 新建 Coding Plan</button>
-            <button class="btn sm" onclick="saveConfig()">保存预设</button>
-          </div>
-        </div>
-        <div class="card">
-          <h3>模型目录</h3>
+        <div class="field"><label>模型目录</label>
           <div class="hint">${esc(cfg.models_root || "")}</div>
           <div id="modelList"><div class="muted">加载中...</div></div>
         </div>
-        <div class="card">
-          <h3>其他</h3>
-          <div class="field"><label>备份目录（backup_dir）</label><input id="cfgBackup" value="${esc(cfg.backup_dir || "")}"></div>
-          <div class="field"><label>产出目录（output_dir）</label><input id="cfgOutput" value="${esc(cfg.output_dir || "")}"></div>
-          <div class="field"><label>请求超时（秒）</label><input id="cfgTimeout" type="number" min="5" value="${esc(cfg.timeout || 60)}"></div>
-          <div class="row">
-            <label class="switch"><input type="checkbox" id="cfgTools" ${cfg.tools_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用工具</span>
-            <label class="switch" style="margin-left:12px"><input type="checkbox" id="cfgSkills" ${cfg.skills_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用技能</span>
+      </div>
+
+      <div class="section-card" id="secApi">
+        <h3>网络 API 预设</h3>
+        <div class="sec-sub">每个 API 一张卡片，可编辑/删除；「默认」为当前生效预设</div>
+        <div id="apiCards"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn sm primary" onclick="openApiModal()">＋ 新建 API</button>
+          <button class="btn sm" onclick="openApiModal('coding')">＋ 新建 Coding Plan</button>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>数据与备份</h3>
+        <div class="grid2">
+          <div class="field"><label>备份目录（backup_dir）</label>
+            <div class="row"><input id="cfgBackup" value="${esc(cfg.backup_dir || "")}"><button class="btn sm" onclick="pickFolder('cfgBackup')">选择</button></div>
           </div>
+          <div class="field"><label>产出目录（output_dir）</label>
+            <div class="row"><input id="cfgOutput" value="${esc(cfg.output_dir || "")}"><button class="btn sm" onclick="pickFolder('cfgOutput')">选择</button></div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm" onclick="saveConfig()">保存目录</button>
+          <span class="muted">数据目录：${esc(cfg.home || "")}</span>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>通用</h3>
+        <div class="field"><label>请求超时（秒）</label><input id="cfgTimeout" type="number" min="5" value="${esc(cfg.timeout || 60)}" style="max-width:120px"></div>
+        <div class="row">
+          <label class="switch"><input type="checkbox" id="cfgTools" ${cfg.tools_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用工具</span>
+          <label class="switch" style="margin-left:12px"><input type="checkbox" id="cfgSkills" ${cfg.skills_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用技能</span>
+          <button class="btn primary" style="margin-left:auto" onclick="saveConfig()">保存配置</button>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>关于</h3>
+        <div class="row"><span class="muted">Shadeling Agent · 由 Brickery 积木平台产出</span></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm" onclick="reRunSetup()">重新运行首次引导</button>
+          <span class="muted" id="aboutHome">${esc(cfg.home || "")}</span>
         </div>
       </div>
     </div>
@@ -1428,6 +1467,31 @@ async function renderSettings() {
   renderApiCards();
   loadModels();
   renderEngineStatus();
+  syncBackendSections();
+}
+function setBackend(v) {
+  const sel = $("cfgBackend");
+  if (sel) sel.value = v;
+  const lb = $("btnBackendLocal"), ab = $("btnBackendApi");
+  if (lb) lb.classList.toggle("primary", v === "local");
+  if (ab) ab.classList.toggle("primary", v === "api");
+  syncBackendSections();
+}
+function syncBackendSections() {
+  const sel = $("cfgBackend");
+  if (!sel) return;
+  const v = sel.value;
+  const sl = $("secLocal"), sa = $("secApi");
+  if (sl) sl.style.display = v === "local" ? "" : "none";
+  if (sa) sa.style.display = v === "api" ? "" : "none";
+}
+function pickFolder(inputId) {
+  const v = prompt("输入目录路径：", $(inputId).value || "");
+  if (v != null) $(inputId).value = v.trim();
+}
+async function reRunSetup() {
+  if (!confirm("重新运行首次引导？当前配置不会丢失，引导页会重新打开。")) return;
+  location.href = "http://127.0.0.1:18766/";
 }
 let apiProfiles = [], apiActiveId = "";
 function renderApiCards() {

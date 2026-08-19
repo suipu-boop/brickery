@@ -353,8 +353,12 @@ $("saveBtn").onclick = async () => {
     output_dir: $("output_dir").value.trim(),
   };
   const r = await jpost("/api/config", body);
-  if (r.ok) setStatus(st, "配置已保存", true);
-  else setStatus(st, "保存失败：" + (r.error || ""), false);
+  if (r.ok) {
+    setStatus(st, "配置已保存，正在进入聊天...", true);
+    setTimeout(() => { location.href = "http://127.0.0.1:18767/"; }, 800);
+  } else {
+    setStatus(st, "保存失败：" + (r.error || ""), false);
+  }
 };
 
 $("verifyBtn").onclick = async () => {
