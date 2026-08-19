@@ -152,6 +152,15 @@ PAGE_HTML = """<!DOCTYPE html>
       <label>服务商预设（可编辑，点选即填入模板）</label>
       <select id="preset"></select>
       <div class="hint" id="presetHint" style="font-size:11px;color:var(--dim);margin-top:4px"></div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn ghost" type="button" onclick="enterPlanMode('coding')">＋ 自定义 Coding Plan</button>
+        <button class="btn ghost" type="button" onclick="enterPlanMode('custom')">＋ 其他厂商普通 API</button>
+      </div>
+      <div id="codingHintPanel" style="display:none;margin-top:8px;padding:8px;border-radius:8px;background:rgba(99,102,241,.06);font-size:12px;color:var(--dim)">
+        Coding Plan 是各厂商的独立额度，Base URL 与普通 API 不同——填错（如用了普通 /v3 地址）会走普通额度，且用不掉 Coding Plan。
+        <div style="margin-top:4px">示例 · 火山方舟 Coding Plan：<code style="user-select:all">https://ark.cn-beijing.volces.com/api/coding/v3</code></div>
+        <div>示例 · 腾讯混元 Coding Plan（免费）：<code style="user-select:all">https://api.lkeap.cloud.tencent.com/coding/v3</code></div>
+      </div>
       <div class="row">
         <div><label>API URL</label><input id="api_url" placeholder="https://..."></div>
         <div><label>模型名</label><input id="api_model" placeholder="model-id"></div>
@@ -208,6 +217,7 @@ PAGE_HTML = """<!DOCTYPE html>
 <script>
 const $ = id => document.getElementById(id);
 let presets = [];
+let planMode = "preset"; // preset | coding | custom
 
 async function jget(url) {
   const r = await fetch(url);
@@ -256,18 +266,40 @@ function applyPreset(i) {
   const hint = $("presetHint");
   if (i === "-1") {
     // 自定义 Coding Plan：清空模板，手填任意兼容 OpenAI 的端点
-    $("api_url").value = "";
-    $("api_model").value = "";
-    $("api_name").value = "";
-    if (hint) hint.textContent = "自定义 Coding Plan：手填任意兼容 OpenAI 的端点 + 模型 + Key，名称可自定义";
+    enterPlanMode("coding");
     return;
   }
   const p = presets[i];
   if (!p) return;
+  planMode = "preset";
   $("api_url").value = p.url;
   $("api_model").value = p.model;
   $("api_name").value = p.name;
   if (hint) hint.textContent = "";
+  setPlanInputs(false);
+}
+
+function enterPlanMode(mode) {
+  planMode = mode;
+  $("api_url").value = "";
+  $("api_model").value = "";
+  $("api_name").value = mode === "coding" ? "我的 Coding Plan" : "";
+  const hint = $("presetHint");
+  if (hint) hint.textContent = "";
+  setPlanInputs(mode === "coding");
+}
+
+function setPlanInputs(coding) {
+  const url = $("api_url"), model = $("api_model"), panel = $("codingHintPanel");
+  if (coding) {
+    url.placeholder = "Base URL（Coding Plan 专用，如 …/api/coding/v3）";
+    model.placeholder = "模型名（Coding Plan 里的 endpoint ID / 模型名）";
+    if (panel) panel.style.display = "";
+  } else {
+    url.placeholder = "https://...";
+    model.placeholder = "model-id";
+    if (panel) panel.style.display = "none";
+  }
 }
 
 function toggleBackend() {
@@ -318,6 +350,7 @@ function goStep(n) {
 function renderSummary() {
   const rows = [
     ["后端模式", $("backend").value === "api" ? "API" : "本地 GGUF"],
+    ["模式", planMode === "coding" ? "Coding Plan" : planMode === "custom" ? "自定义 API" : "预设"],
     ["服务商", $("api_name").value || "—"],
     ["API URL", $("api_url").value || "—"],
     ["模型", $("api_model").value || $("local_model").value || "—"],
@@ -352,6 +385,7 @@ $("saveBtn").onclick = async () => {
     backup_dir: $("backup_dir").value.trim(),
     output_dir: $("output_dir").value.trim(),
   };
+  if (planMode === "coding" && !body.api_name) body.api_name = "我的 Coding Plan";
   const r = await jpost("/api/config", body);
   if (r.ok) {
     setStatus(st, "配置已保存，正在进入聊天...", true);
