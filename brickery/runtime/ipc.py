@@ -1486,7 +1486,7 @@ class IpcServer:
                 "backend": e.backend,
                 "local_available": local_ok,
                 "local_model_path": local_path,
-                "network_configured": bool(e.api_url),
+                "network_configured": bool(e.api_url and e.api_key),
                 "api_model": e.api_model,
                 "api_name": e.api_name,
             },
