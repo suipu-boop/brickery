@@ -368,7 +368,9 @@ def _bundle_runtime(resources: Path) -> None:
 
     底座来源优先级（用户拍板）：GitHub 拉下的 `~/.brickery/base/brickery` 优先
     （最终用户本地无底座），本地仓库仅作开发兜底。
-    排除 __pycache__ / tests / fixtures / web（运行时不需要）。
+    排除 __pycache__ / tests / web（运行时不需要）；fixtures/skill_repo 必须携带：
+    它是「积木市场」的离线源（ipc._resolve_skill_repo_url 探测到即用 file:// 本地源，
+    避免首启无缓存窗口依赖公网 GitHub 拉取失败导致市场页空白）。
     """
     base_src = Path.home() / ".brickery" / "base" / "brickery"
     local_src = Path(__file__).resolve().parent  # brickery/ 包目录
@@ -378,8 +380,15 @@ def _bundle_runtime(resources: Path) -> None:
         shutil.rmtree(dst)
     shutil.copytree(
         src, dst,
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "tests", "fixtures", "web"),
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "tests", "web"),
     )
+    # 离线技能市场源以本地开发仓库为准（幂等覆盖，防止 base 缓存落后导致缺源）
+    local_fixtures = local_src / "fixtures" / "skill_repo"
+    if (local_fixtures / "index.json").exists():
+        dst_fixtures = dst / "fixtures" / "skill_repo"
+        if dst_fixtures.exists():
+            shutil.rmtree(dst_fixtures)
+        shutil.copytree(local_fixtures, dst_fixtures)
     # P4：内嵌 python（含 llama_cpp）随包携带，目标机无系统 python3 也能启动
     _bundle_embedded_python(resources)
 
