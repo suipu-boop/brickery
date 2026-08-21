@@ -162,6 +162,11 @@
   }
   .brick .ver { font-size: 10px; color: var(--ink-faint); }
   .brick .row2 { display: flex; align-items: center; gap: 6px; }
+  .brick .dl-btn {
+    margin-left: auto; font-size: 10px; padding: 2px 8px; border: 1px solid var(--line);
+    border-radius: 3px; background: var(--card); color: var(--ink-faint); cursor: pointer;
+  }
+  .brick .dl-btn:hover { border-color: var(--amber); color: var(--ink); }
   .brick .summary {
     font-size: 11px; color: var(--ink-soft);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -365,6 +370,7 @@
     <div class="cat-tools">
       <button onclick="expandAll()">全部展开</button>
       <button onclick="collapseAll()">全部折叠</button>
+      <button onclick="downloadBatch()" title="把当前筛选列表打包成一个 .brick 存到桌面">批量下载 .brick</button>
     </div>
     <div id="brick-list"></div>
   </section>
@@ -417,6 +423,7 @@ const $ = (id) => document.getElementById(id);
 let bricks = [];
 let engines = [];
 let selected = new Set();
+let currentFiltered = []; // 当前筛选列表（批量下载用）
 let riskFilter = 'all';
 let catFilter = 'all';
 let collapsedCats = new Set();
@@ -531,6 +538,7 @@ function renderBrickList() {
   });
 
   $('brick-count').textContent = list.length + ' / ' + bricks.length;
+  currentFiltered = list;
   renderCatTabs();
 
   if (!bricks.length) {
@@ -578,6 +586,7 @@ function brickCard(b, q) {
         <div class="row2">
           <span class="risk ${esc(b.risk_level)}" title="${RISK_TIP[b.risk_level] || ''}">${RISK_TEXT[b.risk_level] || esc(b.risk_level)}</span>
           <span class="ver">v${esc(b.version)}</span>
+          <button class="dl-btn" onclick="event.stopPropagation();downloadBrick('${esc(b.name)}')">下载 .brick</button>
         </div>
         <div class="summary" title="${esc(b.summary || b.description || '（无解释）')}">${hl(b.summary || b.description || '（无解释）', q)}</div>
       </div>
@@ -603,6 +612,27 @@ function toggleSelect(name) {
   renderAssembly();
   renderBrickList();
   checkPlan();
+}
+
+/* ============ 下载 .brick（离线安装通道的打包侧） ============ */
+async function downloadBrick(name) { await doBrickDownload([name]); }
+async function downloadBatch() {
+  if (!currentFiltered.length) { alert('当前没有可下载的积木'); return; }
+  await doBrickDownload(currentFiltered.map(b => b.name));
+}
+async function doBrickDownload(ids) {
+  try {
+    const r = await fetch('/api/brick-download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert('打包失败：' + (d.error || '未知错误')); return; }
+    alert('已打包 ' + d.count + ' 块积木到桌面：\n' + d.path + '\n\n拖进底座「积木市场」页即可离线安装');
+  } catch (e) {
+    alert('打包失败：' + e.message);
+  }
 }
 
 /* ============ 底座（推理引擎） ============ */

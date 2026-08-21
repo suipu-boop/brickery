@@ -39,7 +39,9 @@ from .loop import AgentLoop
 from .daemon import Daemon
 from .sessions import SessionStore
 from .skills import Skill, SkillRegistry
-from .skill_library import SkillLibrary, LibraryEntry, split_version as _split_version_safe
+from .skill_library import (SkillLibrary, LibraryEntry, SkillPackageError,
+                            validate_skill_package,
+                            split_version as _split_version_safe)
 from .tools import Tool, ToolRegistry, Mode, ScopePolicy, RiskLevel
 from .sandbox import default_sandbox
 from .builtin_tools import build_p0_registry
@@ -1275,6 +1277,7 @@ class IpcServer:
             "author": e.author, "summary": e.summary, "category": e.category,
             "description": e.description, "tags": e.tags, "installed_version": e.installed_version,
             "installed": e.installed_version is not None,
+            "installed_via": e.installed_via or "",
         } for e in entries]
         return {"ok": True, "items": items}
 
@@ -1329,6 +1332,90 @@ class IpcServer:
             "license": skill.license, "trigger": list(skill.trigger),
             "tags": list(skill.tags), "content": skill.content,
         }}
+
+    def _h_skill_library_import_preview(self, params):
+        """导入前预览：只读解析 .brick 包（zip 结构 + manifest + sha256 校验），
+        返回逐积木摘要供 UI 确认弹窗展示。不写入、不注册、不改动任何状态。
+        """
+        from ..package import collect_brick_paths, inspect
+        paths = params.get("files") or params.get("paths") or []
+        if isinstance(paths, str):
+            paths = [paths]
+        bricks = collect_brick_paths([str(p) for p in paths])
+        if not bricks:
+            return {"ok": False, "error": "未找到 .brick 积木包（支持文件或文件夹）",
+                    "items": []}
+        items = []
+        for bp in bricks:
+            manifest, err = inspect(bp)
+            if err:
+                items.append({"path": str(bp), "ok": False, "error": err})
+                continue
+            for ent in manifest.get("entries") or []:
+                items.append({
+                    "path": str(bp), "ok": True,
+                    "id": str(ent.get("id") or ""),
+                    "name": str(ent.get("name") or ""),
+                    "version": str(ent.get("version") or ""),
+                    "author": str(ent.get("author") or ""),
+                    "summary": str(ent.get("summary") or ""),
+                    "category": str(ent.get("category") or ""),
+                    "tags": list(ent.get("tags") or []),
+                    "packed_by": str(manifest.get("packed_by") or ""),
+                })
+        return {"ok": True, "items": items, "total": len(items)}
+
+    def _h_skill_library_import(self, params):
+        """离线导入 .brick 积木包（一个或多个；支持文件夹递归）。
+
+        入参：{"files": [<路径>...]}，文件或文件夹均可。
+        逐包流程：校验 zip 结构 + manifest + sha256（防篡改）→ 校验 Skill 契约 →
+        注册进 skills.json（source=清单 id，与远程市场安装对齐）→ 桥接 provides_tool。
+        单包失败不拖死批量；返回逐包结果供 UI 逐块反馈（成功/失败可重试）。
+        """
+        from ..package import collect_brick_paths, inspect, unpack
+        paths = params.get("files") or params.get("paths") or []
+        if isinstance(paths, str):
+            paths = [paths]
+        bricks = collect_brick_paths([str(p) for p in paths])
+        if not bricks:
+            return {"ok": False, "error": "未找到 .brick 积木包（支持文件或文件夹）",
+                    "items": [], "imported": 0}
+        results = []
+        imported = []
+        for bp in bricks:
+            manifest, err = inspect(bp)
+            if err:
+                results.append({"path": str(bp), "ok": False, "error": err})
+                continue
+            raws, err = unpack(bp)
+            if err:
+                results.append({"path": str(bp), "ok": False, "error": err})
+                continue
+            for ent, raw in zip(manifest.get("entries") or [], raws):
+                try:
+                    skill = validate_skill_package(raw)
+                except SkillPackageError as e:
+                    results.append({"path": str(bp), "ok": False,
+                                    "id": str(ent.get("id") or ""),
+                                    "name": str(ent.get("name") or ""),
+                                    "error": f"积木校验失败：{e}"})
+                    continue
+                skill.source = str(ent.get("id") or skill.name)
+                skill.installed_via = "offline"
+                skill.installed_at = time.strftime("%Y-%m-%dT%H:%M:%S",
+                                                   time.localtime())
+                self.skills.register(skill)  # 同名覆盖（重导 = 更新）
+                imported.append(skill)
+                results.append({"path": str(bp), "id": skill.source,
+                                "name": skill.name, "version": skill.version,
+                                "ok": True})
+        if imported:
+            self.skills.save(self.config.home / "skills.json")
+            self._sync_skill_tools()
+        return {"ok": True, "items": results,
+                "imported": sum(1 for r in results if r.get("ok")),
+                "total": len(results)}
 
     def _sync_skill_tools(self) -> None:
         """把已装技能声明的 provides_tool 桥接进工具注册表（§4.4 / §4.5）。

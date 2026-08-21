@@ -51,6 +51,7 @@ IPC_ALLOWED_METHODS = {
     "skill_list", "skill_toggle", "skill_trigger",
     "skill_library_list", "skill_library_install", "skill_library_uninstall",
     "skill_library_upgrade", "skill_library_review",
+    "skill_library_import_preview", "skill_library_import",
     "tool_list", "tool_toggle", "tool_trigger",
     # 记忆柜 / 保险库
     "vault_list", "vault_add", "vault_delete", "vault_detail", "vault_ocr",
@@ -303,6 +304,19 @@ PAGE_HTML = """<!DOCTYPE html>
   }
   .tag.on { color: var(--green); border-color: var(--green); }
   .tag.off { color: var(--red); border-color: var(--red); }
+  .dropzone {
+    margin: 10px 0 14px; padding: 14px 16px; border: 1.5px dashed var(--line);
+    border-radius: 8px; text-align: center; font-size: 12px; color: var(--dim);
+    cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(255,122,24,0.05); color: var(--ink); }
+  .dropzone .dz-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+  .import-item { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; background: var(--panel2); font-size: 12px; }
+  .import-item .i-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .import-item .i-desc { color: var(--dim); font-size: 11px; margin-top: 4px; }
+  .import-item.err { border-color: var(--red); }
+  .import-item.ok { border-color: var(--green); }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
   .list-item {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 9px 12px; border: 1px solid var(--line); border-radius: 4px;
@@ -946,6 +960,12 @@ async function renderMarket() {
           <button class="btn sm" onclick="renderMarket()">刷新</button>
         </div>
       </div>
+      <div class="hint">没网也能装积木：在工坊或网页点「下载 .brick」，把文件拖到这里，或点按钮选择文件。可一次拖多个。</div>
+      <div class="dropzone" id="brickDropzone" onclick="pickBrickFiles()">
+        <div class="dz-title">导入积木包（.brick）</div>
+        <div>点击选择文件，或把 .brick 文件拖到这里 · 可一次拖多个 / 选多个</div>
+      </div>
+      <input type="file" id="brickFileInput" accept=".brick,application/zip" multiple style="display:none" onchange="onBrickFilesChosen(this)">
       <div class="hint">已装 ${installed.length} / 共 ${items.length} 块 · 可升级 ${upgradable.length} 块 · 安装/卸载后重启生效</div>
       ${err ? `<div class="err-text">${esc(err)}</div>` : ""}
       <div id="marketList">
@@ -953,7 +973,7 @@ async function renderMarket() {
           <div class="item-card">
             <div class="head">
               <span class="name">${esc(b.name)}</span>
-              <span class="tag ${b.installed ? "on" : "off"}">${b.installed ? "已装" : "未装"}</span>
+              ${b.installed ? `<span class="tag on">${b.installed_via === "offline" ? "已装（离线）" : "已装"}</span>` : `<span class="tag off">未装</span>`}
               ${b.category ? `<span class="tag">${esc(b.category)}</span>` : ""}
               <span class="tag">v${esc(b.version || "?")}</span>
               ${b.installed && b.installed_version && b.version && b.installed_version !== b.version ? `<span class="tag warn">可升级 ${esc(b.installed_version)}→${esc(b.version)}</span>` : ""}
@@ -970,7 +990,110 @@ async function renderMarket() {
           </div>`).join("") || '<div class="empty">市场为空或未连接</div>'}
       </div>
     </div>`;
+  const dz = $("brickDropzone");
+  if (dz) {
+    dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("drag"); });
+    dz.addEventListener("dragleave", () => dz.classList.remove("drag"));
+    dz.addEventListener("drop", async e => {
+      e.preventDefault(); dz.classList.remove("drag");
+      const paths = brickPathsFromList(e.dataTransfer.files);
+      if (!paths.length) { alert("请拖入 .brick 文件"); return; }
+      await marketImportPreview(paths);
+    });
+  }
 }
+/* ---- 离线导入 .brick（预览 → 确认弹窗 → 安装 → 结果反馈） ---- */
+let importPending = [];
+function brickPathsFromList(fileList) {
+  const out = [];
+  for (const f of (fileList || [])) {
+    const p = f.path || f.webkitRelativePath || "";
+    if (p && p.toLowerCase().endsWith(".brick")) out.push(p);
+  }
+  return out;
+}
+function pickBrickFiles() { const inp = $("brickFileInput"); if (inp) inp.click(); }
+async function onBrickFilesChosen(input) {
+  const paths = brickPathsFromList(input.files);
+  if (!paths.length) { alert("请选择 .brick 积木包文件（可多选）"); input.value = ""; return; }
+  input.value = "";
+  await marketImportPreview(paths);
+}
+async function marketImportPreview(paths) {
+  let d;
+  try { d = await ipc("skill_library_import_preview", { files: paths }); }
+  catch (e) { alert("解析积木包失败：" + e.message); return; }
+  if (!d.ok) { alert("解析积木包失败：" + (d.error || "")); return; }
+  const items = (d.items || []).filter(i => i.path);
+  if (!items.length) { alert("所选文件中没有可导入的积木"); return; }
+  importPending = items;
+  showImportConfirm();
+}
+function showImportConfirm() {
+  const okItems = importPending.filter(i => i.ok);
+  const badItems = importPending.filter(i => !i.ok);
+  const rows = okItems.map(b => `
+    <div class="import-item">
+      <div class="i-head">
+        <strong>${esc(b.name || b.id || "未命名")}</strong>
+        <span class="tag">v${esc(b.version || "?")}</span>
+        ${b.author ? `<span class="tag">${esc(b.author)}</span>` : ""}
+        ${(b.packed_by && b.packed_by !== "brickery") ? `<span class="tag warn">来源未知</span>` : `<span class="tag on">官方打包</span>`}
+      </div>
+      ${b.summary ? `<div class="i-desc">${esc(b.summary)}</div>` : ""}
+    </div>`).join("");
+  const badRows = badItems.map(b => `
+    <div class="import-item err">
+      <div class="i-head"><strong>${esc((b.path || "").split("/").pop() || "文件")}</strong><span class="tag off">校验失败</span></div>
+      <div class="i-desc">${esc(b.error || "无法解析")}</div>
+    </div>`).join("");
+  showImportModal(`
+    <h3>导入积木</h3>
+    <div class="muted" style="margin-bottom:10px">将安装以下 ${okItems.length} 块积木${badItems.length ? `（另有 ${badItems.length} 个文件校验失败，不会安装）` : ""}：</div>
+    ${rows || '<div class="empty">没有可安装的积木</div>'}
+    ${badRows}
+    <div class="modal-foot">
+      <button class="btn" onclick="closeImportModal()">取消</button>
+      ${okItems.length ? `<button class="btn primary" onclick="marketImportDo()">安装</button>` : `<button class="btn primary" onclick="closeImportModal()">关闭</button>`}
+    </div>
+  `);
+}
+async function marketImportDo() {
+  const okPaths = [...new Set(importPending.filter(i => i.ok).map(i => i.path))];
+  closeImportModal();
+  if (!okPaths.length) return;
+  let d;
+  try { d = await ipc("skill_library_import", { files: okPaths }); }
+  catch (e) { showImportResult([], "导入失败：" + e.message); return; }
+  showImportResult((d && d.items) || [], !d.ok ? (d.error || "导入失败") : "");
+  renderMarket();
+}
+function showImportResult(items, topErr) {
+  const rows = (items || []).map(r => r.ok
+    ? `<div class="import-item ok"><div class="i-head"><strong>${esc(r.name || r.id || "积木")}</strong><span class="tag on">已安装</span>${r.version ? `<span class="tag">v${esc(r.version)}</span>` : ""}</div></div>`
+    : `<div class="import-item err"><div class="i-head"><strong>${esc(r.name || r.id || (r.path || "").split("/").pop() || "积木")}</strong><span class="tag off">失败</span></div><div class="i-desc">${esc(r.error || "导入失败")}</div></div>`).join("");
+  showImportModal(`
+    <h3>导入结果</h3>
+    ${topErr ? `<div class="err-text" style="margin-bottom:8px">${esc(topErr)}</div>` : ""}
+    ${rows || '<div class="empty">未返回结果</div>'}
+    <div class="modal-foot"><button class="btn primary" onclick="closeImportModal()">完成</button></div>
+  `);
+}
+function showImportModal(html) {
+  let m = $("importModal");
+  if (!m) {
+    m = document.createElement("div");
+    m.id = "importModal";
+    m.className = "modal-mask";
+    m.style.display = "none";
+    m.innerHTML = '<div class="modal-box" id="importModalBox" style="width:520px"></div>';
+    m.addEventListener("click", e => { if (e.target === m) closeImportModal(); });
+    document.body.appendChild(m);
+  }
+  $("importModalBox").innerHTML = html;
+  m.style.display = "flex";
+}
+function closeImportModal() { const m = $("importModal"); if (m) m.style.display = "none"; }
 async function marketInstall(id) {
   if (!confirm("安装积木 " + id + "？安装后重启生效。")) return;
   try {

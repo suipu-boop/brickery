@@ -28,6 +28,10 @@ DEFAULT_VAULT = str(Path.home() / ".brickery" / "vault")
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
+# 公网默认市场源（与 runtime 一致；GitHub Only，无本地离线兜底）
+DEFAULT_SKILL_REPO = ("https://raw.githubusercontent.com/"
+                      "suipu-boop/shadeling-bricks/main/skills/index.json")
+
 # DMG 打包需要 dmgbuild + PIL，web server（系统 python3）无此依赖，
 # 通过 subprocess 调受管 venv python 执行 brickery/dmg.py。
 # 可用环境变量 BRICKERY_DMG_PY 覆盖。
@@ -70,6 +74,8 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             self._api_dmg(body)
         elif path == "/api/sync":
             self._api_sync(body)
+        elif path == "/api/brick-download":
+            self._api_brick_download(body)
         else:
             self._json({"error": "not found"}, status=404)
 
@@ -102,6 +108,17 @@ class BrickeryHandler(BaseHTTPRequestHandler):
         """只读源状态（不触发网络）。"""
         from ..web.sync import status
         self._json(status())
+
+    def _api_brick_download(self, body: dict) -> None:
+        """按积木 id 从公网市场源拉取，打包成 .brick 存到桌面。
+
+        支持单块 / 批量（ids 多值打进同一个包）。离线导入通道的「打包」侧。
+        """
+        ids = [str(i).strip() for i in (body.get("ids") or []) if str(i).strip()]
+        if not ids:
+            self._json({"ok": False, "error": "缺少要打包的积木 id"})
+            return
+        self._json(_download_bricks_to_desktop(ids, self.vault_root))
 
     def _api_bricks(self) -> None:
         try:
@@ -229,6 +246,67 @@ def _dir_size_mb(path: Path) -> int:
         return int(subprocess.check_output(["du", "-sm", str(path)]).split()[0])
     except (subprocess.SubprocessError, OSError, ValueError, IndexError):
         return 0
+
+
+def _safe_filename(name: str) -> str:
+    """合法化 .brick 文件名（去路径分隔/空白/控制字符，限长）。"""
+    import re
+    n = re.sub(r'[\\/:*?"<>|\s]+', "-", str(name or "")).strip("-")
+    return (n or "brick")[:80]
+
+
+def _download_bricks_to_desktop(ids: list, vault_root: str) -> dict:
+    """从公网市场源拉取积木（完整 Skill JSON），打包 .brick 到桌面。
+
+    返回 {ok, path, count, names} 或 {ok: False, error}。
+    单块包名用积木名；多块用 bricks-<时间戳>。
+    """
+    import time as _time
+    from dataclasses import asdict
+
+    from ..package import BrickPackageError, pack_bricks
+    from ..runtime.skill_library import SkillLibrary
+
+    class _NoSkills:
+        """list_entries 需要 skills_registry 查询已装版本；下载侧不关心，给空注册表。"""
+
+        def all(self):
+            return []
+
+    lib = SkillLibrary(DEFAULT_SKILL_REPO, Path(vault_root), timeout=20)
+    entries, err = lib.list_entries(_NoSkills(), force=True)
+    if err:
+        return {"ok": False, "error": f"市场源不可达：{err}"}
+    by_id = {e.id: e for e in entries}
+    by_name = {e.name: e for e in entries}
+    wanted = []
+    for i in ids:
+        e = by_id.get(i) or by_name.get(i)
+        if e is None:
+            return {"ok": False, "error": f"市场源中找不到积木：{i}"}
+        if e not in wanted:
+            wanted.append(e)
+    skills = []
+    for e in wanted:
+        skill, derr = lib._download_skill(e.download_url)
+        if derr:
+            return {"ok": False, "error": f"积木 {e.name} 拉取失败：{derr}"}
+        skills.append(asdict(skill))
+    if len(skills) == 1:
+        fname = _safe_filename(str(skills[0].get("name") or skills[0].get("id") or "brick"))
+    else:
+        fname = "bricks-" + _time.strftime("%Y%m%d-%H%M%S")
+    out = Path.home() / "Desktop" / f"{fname}.brick"
+    try:
+        pack_bricks(skills, out)
+    except BrickPackageError as e:
+        return {"ok": False, "error": str(e)}
+    return {
+        "ok": True,
+        "path": str(out),
+        "count": len(skills),
+        "names": [str(s.get("name") or s.get("id") or "?") for s in skills],
+    }
 
 
 def serve(vault_root: str = DEFAULT_VAULT,

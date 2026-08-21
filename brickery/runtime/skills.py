@@ -30,6 +30,7 @@ class Skill:
     license: str = ""           # 许可证标识，如 "MIT"
     source: str = ""            # 来源：""=本地手写；否则为库 id 或源 URL（provenance）
     installed_at: str = ""      # 安装时间戳（ISO），仅 marketplace 安装写入
+    installed_via: str = "online"  # 安装通道："online"=联网市场；"offline"=离线 .brick 导入
     provides_tool: str = ""     # 声明携带的内置工具名（见《DocWrite 规格》§4）；
                                 # 非空时从 ToolProviderRegistry 取 handler 注册为工具。
                                 # 空 = 纯提示技能（现状不变）。
@@ -114,6 +115,7 @@ class SkillRegistry:
                 **({"license": s.license} if s.license else {}),
                 **({"source": s.source} if s.source else {}),
                 **({"installed_at": s.installed_at} if s.installed_at else {}),
+                **({"installed_via": s.installed_via} if s.installed_via != "online" else {}),
                 **({"provides_tool": s.provides_tool} if s.provides_tool else {}),
                 **({"binary_url": s.binary_url} if s.binary_url else {}),
                 **({"binary_size": s.binary_size} if s.binary_size else {}),
@@ -181,6 +183,7 @@ class SkillRegistry:
                 license=str(item.get("license", "")),
                 source=str(item.get("source", "")),
                 installed_at=str(item.get("installed_at", "")),
+                installed_via=str(item.get("installed_via", "online")),
                 provides_tool=str(item.get("provides_tool", "")),
                 binary_url=str(item.get("binary_url", "")),
                 binary_size=int(item.get("binary_size", 0) or 0),

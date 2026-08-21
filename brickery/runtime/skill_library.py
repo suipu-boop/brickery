@@ -210,6 +210,7 @@ def validate_skill_package(raw: dict) -> Skill:
         license=str(raw.get("license", "")),
         source=str(raw.get("source", "")),
         installed_at=str(raw.get("installed_at", "")),
+        installed_via=str(raw.get("installed_via", "online")),
         provides_tool=str(provides_tool),
         binary_url=binary_url,
         binary_size=int(binary_size),
@@ -235,7 +236,8 @@ class LibraryEntry:
     tags: List[str]
     download_url: str
     description: str = ""   # 长解释；目录(index.json)有则取自目录，否则留空由审阅弹窗补全
-    installed_version: Optional[str] = None   # 本地已装的版本；None=未装
+    installed_version: Optional[str] = None
+    installed_via: str = ""  # 本地已装来源："online" / "offline"；未装为空
 
 
 class SkillLibrary:
@@ -330,6 +332,7 @@ class SkillLibrary:
                 description=str(item.get("description", "")),
                 download_url=dl,
                 installed_version=local.version if local else None,
+                installed_via=local.installed_via if local else "",
             ))
         return out, None
 
@@ -365,6 +368,7 @@ class SkillLibrary:
         # 打 provenance（必须先于二进制下载：下载路径与运行时 binary_path_for
         # 都依赖 source 定位 home/bin/<source>/，顺序错会导致引擎找不到）
         skill.source = skill_id
+        skill.installed_via = "online"
         skill.installed_at = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
         # 高配技能：下载引擎二进制到 BRICKERY_HOME/bin/<source>/
         if skill.binary_url:
@@ -501,6 +505,7 @@ class BrickMarket(SkillLibrary):
         if err:
             return None, err
         skill.source = skill_id
+        skill.installed_via = "online"
         skill.installed_at = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
         if skill.binary_url:
             ok, berr = self._download_binary(skill)
