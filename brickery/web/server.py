@@ -22,8 +22,9 @@ from urllib.parse import urlparse
 
 from ..assembler import AssemblyError, load_vault
 from ..produce import DEFAULT_AGENTS_ROOT, ProduceError, ProduceMeta, produce
+from .live_vault import ensure_bricks_local, fetch_bricks_online
 
-# 积木库默认来自 GitHub 拉下的缓存（~/.brickery/vault），保留 --vault 覆盖
+# 积木库工作区（在线直读 GitHub，此目录仅作组装时按需落盘，可随时删除重建）
 DEFAULT_VAULT = str(Path.home() / ".brickery" / "vault")
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -54,8 +55,6 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             self._serve_frontend("index.html")
         elif path == "/api/bricks":
             self._api_bricks()
-        elif path == "/api/sync-status":
-            self._api_sync_status()
         else:
             self._json({"error": "not found"}, status=404)
 
@@ -72,8 +71,6 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             self._api_produce(body)
         elif path == "/api/dmg":
             self._api_dmg(body)
-        elif path == "/api/sync":
-            self._api_sync(body)
         elif path == "/api/brick-download":
             self._api_brick_download(body)
         else:
@@ -93,22 +90,6 @@ class BrickeryHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     # ---- API ----
-    def _api_sync(self, body: dict) -> None:
-        """从 GitHub 拉取/更新底座与积木（首次 clone，之后 pull）。"""
-        from ..web.sync import SyncError, sync_all, status
-        try:
-            result = sync_all()
-        except SyncError as e:
-            self._json({"ok": False, "error": str(e)})
-            return
-        result["status"] = status()
-        self._json(result)
-
-    def _api_sync_status(self) -> None:
-        """只读源状态（不触发网络）。"""
-        from ..web.sync import status
-        self._json(status())
-
     def _api_brick_download(self, body: dict) -> None:
         """按积木 id 从公网市场源拉取，打包成 .brick 存到桌面。
 
@@ -121,37 +102,55 @@ class BrickeryHandler(BaseHTTPRequestHandler):
         self._json(_download_bricks_to_desktop(ids, self.vault_root))
 
     def _api_bricks(self) -> None:
-        try:
-            asm = load_vault(self.vault_root)
-        except AssemblyError as e:
-            self._json({"error": str(e)}, status=400)
+        bricks, err = fetch_bricks_online(self.vault_root)
+        if err:
+            self._json({"error": err}, status=400)
             return
-        bricks = []
+        items = []
         engines = []
-        for name, b in sorted(asm.bricks.items()):
+        for b in bricks:
             item = {
-                "name": b.name,
-                "version": b.version,
-                "risk_level": b.risk_level,
-                "requires": b.requires,
-                "conflicts": b.conflicts,
-                "resources": b.resources,
+                "name": b.get("name"),
+                "version": b.get("version"),
+                "risk_level": b.get("risk_level"),
+                "requires": b.get("requires"),
+                "conflicts": b.get("conflicts"),
+                "resources": b.get("resources"),
                 # 展示字段（来自 brick.json，供前端解释积木）
-                "summary": b.summary,
-                "description": b.description,
-                "category": b.category,
-                "tags": b.tags,
-                "capabilities": b.capabilities,
-                "dependencies": b.dependencies,
+                "summary": b.get("summary"),
+                "description": b.get("description"),
+                "category": b.get("category"),
+                "tags": b.get("tags"),
+                "capabilities": b.get("capabilities"),
+                "dependencies": b.get("dependencies"),
             }
-            if b.category == "engine":
+            if b.get("category") == "engine":
                 engines.append(item)  # engine 为底座默认能力，单独返回供底座区展示
             else:
-                bricks.append(item)
-        self._json({"bricks": bricks, "engines": engines})
+                items.append(item)
+        self._json({"bricks": items, "engines": engines})
+
+    @staticmethod
+    def _prepare_local(vault_root: str, selected: list) -> Optional[str]:
+        """在线拉取清单并确保所选积木（含依赖）落盘工作区；返回错误或 None。"""
+        bricks, err = fetch_bricks_online(vault_root)
+        if err:
+            return f"无法拉取积木清单：{err}"
+        need = {b.get("name"): b for b in bricks if b.get("name") in selected}
+        missing = [n for n in selected if n not in need]
+        if missing:
+            return f"所选积木不在市场中：{', '.join(missing)}"
+        ok, derr = ensure_bricks_local(vault_root, need)
+        if not ok:
+            return f"积木下载失败：{derr}"
+        return None
 
     def _api_assemble(self, body: dict) -> None:
         selected = body.get("selected") or []
+        err = self._prepare_local(self.vault_root, selected)
+        if err:
+            self._json({"ok": False, "error": err})
+            return
         try:
             asm = load_vault(self.vault_root)
             plan = asm.assemble(selected)
@@ -172,12 +171,11 @@ class BrickeryHandler(BaseHTTPRequestHandler):
             port = int(body.get("port") or 18765)
         except (TypeError, ValueError):
             port = 18765
-        # 产出前自动从 GitHub 拉最新积木/底座；失败静默降级本地缓存，不阻塞产出
-        try:
-            from ..web.sync import sync_all
-            sync_all()
-        except Exception:
-            pass
+        # 产出前在线拉取并确保所选积木落盘工作区（不再依赖预置缓存/手动同步）
+        err = self._prepare_local(self.vault_root, selected)
+        if err:
+            self._json({"ok": False, "error": err})
+            return
         try:
             asm = load_vault(self.vault_root)
             plan = asm.assemble(selected)

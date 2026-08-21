@@ -47,15 +47,6 @@
   header h1 .accent { color: var(--vermilion); }
   header .sub { font-size: 12px; color: var(--ink-soft); }
   .steps { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
-  .sync-box { display: flex; align-items: center; gap: 8px; }
-  .sync-status { font-size: 11px; color: var(--ink-soft); }
-  .sync-btn {
-    border: 1px solid var(--line-strong); background: var(--paper);
-    color: var(--ink); border-radius: 20px; padding: 4px 12px;
-    font-size: 12px; cursor: pointer; font-family: inherit;
-  }
-  .sync-btn:hover { border-color: var(--amber); color: var(--amber); }
-  .sync-btn:disabled { opacity: .6; cursor: wait; }
   .step {
     display: flex; align-items: center; gap: 6px;
     font-size: 12px; color: var(--ink-soft);
@@ -342,10 +333,7 @@
     <h1>Brickery <span class="accent">工坊</span></h1>
     <span class="sub">造 agent 的工厂 · 积木来自 brick-vault</span>
   </div>
-  <div class="sync-box">
-    <span class="sync-status" id="sync-status">积木库 …</span>
-    <button class="sync-btn" id="sync-btn" onclick="syncNow()">从 GitHub 同步</button>
-  </div>
+  <!-- 顶部信息条（积木库在线直连 GitHub，无需本地同步） -->
   <div class="steps">
     <span class="step active" id="step1"><b>1</b>选积木</span>
     <span class="step" id="step2"><b>2</b>组装</span>
@@ -450,43 +438,6 @@ function hl(text, q) {
 }
 
 /* ============ 加载 ============ */
-async function loadSyncStatus() {
-  try {
-    const r = await fetch('/api/sync-status');
-    const d = await r.json();
-    const v = d.vault || {};
-    if (!v.present) {
-      $('sync-status').textContent = '积木库未同步（点按钮拉取）';
-      return;
-    }
-    const t = (v.updated_at || '').replace('T', ' ').slice(0, 16);
-    $('sync-status').textContent = '积木库 ' + (v.commit || '?') + ' · ' + t;
-  } catch (e) {
-    $('sync-status').textContent = '积木库状态未知';
-  }
-}
-
-async function syncNow(silent) {
-  const btn = $('sync-btn');
-  const old = btn.textContent;
-  if (!silent) { btn.disabled = true; btn.textContent = '同步中…'; }
-  $('sync-status').textContent = '正在从 GitHub 拉取…';
-  try {
-    const r = await fetch('/api/sync', { method: 'POST' });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || '同步失败');
-    await loadSyncStatus();
-    await loadBricks();
-    if (!silent) $('sync-status').textContent = '同步完成';
-    return true;
-  } catch (e) {
-    if (!silent) $('sync-status').textContent = '同步失败：' + e.message;
-    return false;
-  } finally {
-    if (!silent) { btn.disabled = false; btn.textContent = old; }
-  }
-}
-
 async function loadBricks() {
   $('brick-list').innerHTML = '<div class="skeleton">' + '<div class="sk"></div>'.repeat(6) + '</div>';
   try {
@@ -748,7 +699,6 @@ async function produce() {
   if (!name) { $('error').textContent = '请先填写 agent 名称'; $('agent-name').focus(); return; }
   $('produce-btn').disabled = true;
   $('result').textContent = '正在产出…';
-  await syncNow(true); // 组装前自动从 GitHub 拉最新积木（失败静默降级本地缓存）
   try {
     const r = await fetch('/api/produce', {
       method: 'POST',
@@ -834,7 +784,6 @@ document.querySelectorAll('#risk-filters button').forEach(btn => {
   });
 });
 loadBricks();
-loadSyncStatus();
 </script>
 </body>
 </html>
