@@ -261,7 +261,18 @@ PAGE_HTML = """<!DOCTYPE html>
   .section-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: rgba(255,255,255,0.02); }
   .section-card > h3 { font-size: 12px; color: var(--accent); letter-spacing: 1.5px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
   .section-card .sec-sub { font-size: 11px; color: var(--dim); margin-bottom: 10px; }
-  .settings-wrap { max-width: 860px; }
+  .settings-wrap { max-width: 1000px; }
+  .settings-layout { display: flex; gap: 16px; align-items: flex-start; }
+  .settings-nav { flex: 0 0 172px; display: flex; flex-direction: column; gap: 2px; background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 10px; padding: 8px; position: sticky; top: 12px; }
+  .settings-nav button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: none; color: var(--dim); padding: 9px 10px; border-radius: 6px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
+  .settings-nav button:hover { background: rgba(255,255,255,0.06); color: var(--ink); }
+  .settings-nav button.active { background: var(--accent); color: #fff; }
+  .settings-nav button .nav-ico { width: 16px; text-align: center; font-style: normal; }
+  .settings-body { flex: 1 1 auto; min-width: 0; }
+  .vendor-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .vendor-tags .vt { font-size: 11px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 20px; color: var(--dim); cursor: pointer; user-select: none; }
+  .vendor-tags .vt.active { border-color: var(--accent); color: var(--accent); background: rgba(99,179,237,0.08); }
+  @media (max-width: 720px) { .settings-layout { flex-direction: column; } .settings-nav { flex-direction: row; flex-wrap: wrap; position: static; } .settings-nav button { width: auto; } }
   .backend-btn { min-width: 110px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
@@ -1356,103 +1367,48 @@ async function doFileSearch() {
 }
 
 /* ================= 设置 ================= */
+let cfgData = null;   // config_get 缓存：tab 切换后未渲染字段仍可取旧值
+let apiProfiles = [], apiActiveId = "";
+
 async function renderSettings() {
   $("content").innerHTML = '<div class="empty">加载中...</div>';
   let cfg = null;
   try { cfg = await ipc("config_get", {}); } catch (e) { $("content").innerHTML = '<div class="err-text">加载配置失败：' + esc(e.message) + '</div>'; return; }
-  const eng = cfg.engine || {};
+  cfgData = cfg;
   apiProfiles = (cfg.profiles || []).filter(p => p && p.id);
   apiActiveId = cfg.active_profile_id || "";
-  const backend = eng.backend === "local" ? "local" : "api";
   $("content").innerHTML = `
     <div class="settings-wrap">
-      <div class="section-card">
-        <h3>引擎状态</h3>
-        <div class="engine-status">
-          <div class="status-row"><span class="dot" id="stLocalDot"></span><span id="stLocalText">本地模型：检测中...</span></div>
-          <div class="status-row"><span class="dot" id="stApiDot"></span><span id="stApiText">网络 API：检测中...</span></div>
+      <div class="settings-layout">
+        <div class="settings-nav">
+          <button data-tab="general" onclick="showSettingsTab('general')"><span class="nav-ico">&#9881;</span>通用</button>
+          <button data-tab="model" onclick="showSettingsTab('model')"><span class="nav-ico">&#9633;</span>模型</button>
+          <button data-tab="memory" onclick="showSettingsTab('memory')"><span class="nav-ico">&#9670;</span>记忆</button>
+          <button data-tab="data" onclick="showSettingsTab('data')"><span class="nav-ico">&#9675;</span>数据与备份</button>
+          <button data-tab="about" onclick="showSettingsTab('about')"><span class="nav-ico">&#8505;</span>关于</button>
         </div>
-        <div class="row" style="margin-top:8px">
-          <button class="btn sm" onclick="renderEngineStatus()">刷新状态</button>
-          <span class="muted">只做本地探测，不发任何试探请求</span>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <h3>后端选择</h3>
-        <div class="row" style="gap:10px">
-          <button class="btn backend-btn ${backend === "local" ? "primary" : ""}" id="btnBackendLocal" onclick="setBackend('local')">本地 GGUF</button>
-          <button class="btn backend-btn ${backend === "api" ? "primary" : ""}" id="btnBackendApi" onclick="setBackend('api')">网络 API</button>
-        </div>
-        <select id="cfgBackend" style="display:none">
-          <option value="api" ${eng.backend === "api" ? "selected" : ""}>网络 API</option>
-          <option value="local" ${eng.backend === "local" ? "selected" : ""}>本地 GGUF</option>
-        </select>
-        <div class="hint" style="margin-top:8px">本地 GGUF 为默认内嵌引擎；网络 API 仅在你主动填写端点时连接，且只连你指定的地址。</div>
-      </div>
-
-      <div class="section-card" id="secLocal">
-        <h3>本地模型</h3>
-        <div class="field"><label>本地模型路径</label>
-          <div class="row">
-            <input id="cfgLocal" value="${esc(eng.local_model || "")}" placeholder="模型路径">
-            <button class="btn sm" onclick="pickLocalModel()">选择</button>
-          </div>
-        </div>
-        <div class="field"><label>模型目录</label>
-          <div class="hint">${esc(cfg.models_root || "")}</div>
-          <div id="modelList"><div class="muted">加载中...</div></div>
-        </div>
-      </div>
-
-      <div class="section-card" id="secApi">
-        <h3>网络 API 预设</h3>
-        <div class="sec-sub">每个 API 一张卡片，可编辑/删除；「默认」为当前生效预设</div>
-        <div id="apiCards"></div>
-        <div class="row" style="margin-top:10px">
-          <button class="btn sm primary" onclick="openApiModal()">＋ 新建 API</button>
-          <button class="btn sm" onclick="openApiModal('coding')">＋ 新建 Coding Plan</button>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <h3>数据与备份</h3>
-        <div class="grid2">
-          <div class="field"><label>备份目录（backup_dir）</label>
-            <div class="row"><input id="cfgBackup" value="${esc(cfg.backup_dir || "")}"><button class="btn sm" onclick="pickFolder('cfgBackup')">选择</button></div>
-          </div>
-          <div class="field"><label>产出目录（output_dir）</label>
-            <div class="row"><input id="cfgOutput" value="${esc(cfg.output_dir || "")}"><button class="btn sm" onclick="pickFolder('cfgOutput')">选择</button></div>
-          </div>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <button class="btn sm" onclick="saveConfig()">保存目录</button>
-          <span class="muted">数据目录：${esc(cfg.home || "")}</span>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <h3>通用</h3>
-        <div class="field"><label>请求超时（秒）</label><input id="cfgTimeout" type="number" min="5" value="${esc(cfg.timeout || 60)}" style="max-width:120px"></div>
-        <div class="row">
-          <label class="switch"><input type="checkbox" id="cfgTools" ${cfg.tools_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用工具</span>
-          <label class="switch" style="margin-left:12px"><input type="checkbox" id="cfgSkills" ${cfg.skills_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用技能</span>
-          <button class="btn primary" style="margin-left:auto" onclick="saveConfig()">保存配置</button>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <h3>关于</h3>
-        <div class="row"><span class="muted">Shadeling Agent · 由 Brickery 积木平台产出</span></div>
-        <div class="row" style="margin-top:8px">
-          <button class="btn sm" onclick="reRunSetup()">重新运行首次引导</button>
-          <span class="muted" id="aboutHome">${esc(cfg.home || "")}</span>
-        </div>
+        <div class="settings-body" id="settingsBody"><div class="empty">加载中...</div></div>
       </div>
     </div>
     <div id="apiModal" class="modal-mask" style="display:none" onclick="if(event.target===this)closeApiModal()">
       <div class="modal-box">
         <h3 id="apiModalTitle">新建 API 预设</h3>
+        <div class="field"><label>厂商</label>
+          <select id="amVendor" onchange="onVendorChange()">
+            <option value="">自定义</option>
+            <optgroup label="国内直连">
+              <option value="volc">火山方舟</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="qwen">通义千问</option>
+              <option value="zhipu">智谱</option>
+            </optgroup>
+            <optgroup label="国外需代理">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Gemini</option>
+            </optgroup>
+          </select>
+        </div>
         <div class="field"><label>预设名称</label><input id="amName" placeholder="如 DeepSeek"></div>
         <div class="field"><label>API 端点（api_url）</label><input id="amUrl" placeholder="https://api.openai.com/v1"></div>
         <div class="field"><label>模型名（api_model）</label><input id="amModel" placeholder="gpt-4o"></div>
@@ -1464,10 +1420,234 @@ async function renderSettings() {
         </div>
       </div>
     </div>`;
+  showSettingsTab("general");
+}
+
+function showSettingsTab(k) {
+  document.querySelectorAll(".settings-nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === k));
+  const body = $("settingsBody"); if (!body) return;
+  if (k === "general") renderTabGeneral();
+  else if (k === "model") renderTabModel();
+  else if (k === "memory") renderTabMemory();
+  else if (k === "data") renderTabData();
+  else if (k === "about") renderTabAbout();
+}
+
+/* ---- 通用 ---- */
+function renderTabGeneral() {
+  const cfg = cfgData || {}; const eng = cfg.engine || {};
+  $("settingsBody").innerHTML = `
+    <div class="section-card">
+      <h3>引擎状态</h3>
+      <div class="engine-status">
+        <div class="status-row"><span class="dot" id="stLocalDot"></span><span id="stLocalText">本地模型：检测中...</span></div>
+        <div class="status-row"><span class="dot" id="stApiDot"></span><span id="stApiText">网络 API：检测中...</span></div>
+      </div>
+      <div class="row"><button class="btn sm" onclick="renderEngineStatus()">刷新状态</button><span class="muted">只做本地探测，不发任何试探请求</span></div>
+    </div>
+    <div class="section-card">
+      <h3>执行模式</h3>
+      <div class="field"><label>模式</label>
+        <select id="cfgMode">
+          <option value="normal" ${cfg.mode === "normal" ? "selected" : ""}>工作模式（写操作逐次确认）</option>
+          <option value="plan" ${cfg.mode === "plan" ? "selected" : ""}>计划模式（只读思考，不碰文件/命令）</option>
+          <option value="accept_edits" ${cfg.mode === "accept_edits" ? "selected" : ""}>可信会话（中风险写操作自动批准）</option>
+        </select>
+      </div>
+      <div class="row"><button class="btn sm primary" onclick="setExecMode()">切换模式</button><span class="muted">切换即生效并持久化</span></div>
+    </div>
+    <div class="section-card">
+      <h3>通用</h3>
+      <div class="field"><label>请求超时（秒）</label><input id="cfgTimeout" type="number" min="5" value="${esc(cfg.timeout || 60)}" style="max-width:120px"></div>
+      <div class="row">
+        <label class="switch"><input type="checkbox" id="cfgTools" ${cfg.tools_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用工具</span>
+        <label class="switch" style="margin-left:12px"><input type="checkbox" id="cfgSkills" ${cfg.skills_enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用技能</span>
+        <button class="btn primary" style="margin-left:auto" onclick="saveConfig()">保存配置</button>
+      </div>
+    </div>
+    <div class="section-card">
+      <h3>红线说明</h3>
+      <div class="hint">删除 / 覆盖 / 格式化等破坏性操作前，Agent 必须逐次确认；计划模式（PLAN）下绝不执行任何写操作。所有高风险命令在执行前都会完整展示并等待你的批准。</div>
+    </div>`;
+  renderEngineStatus();
+}
+
+/* ---- 模型 ---- */
+const VENDOR_TEMPLATES = {
+  volc:      { name: "火山方舟", url: "https://ark.cn-beijing.volces.com/api/v3", model: "deepseek-v3" },
+  deepseek:  { name: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+  qwen:      { name: "通义千问", url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
+  zhipu:     { name: "智谱", url: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
+  openai:    { name: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4o" },
+  anthropic: { name: "Anthropic", url: "https://api.anthropic.com/v1", model: "claude-sonnet-4" },
+  gemini:    { name: "Gemini", url: "https://generativelanguage.googleapis.com/v1beta", model: "gemini-2.0-flash" },
+};
+function vendorLabel(v) {
+  return ({ "": "全部", volc: "火山方舟", deepseek: "DeepSeek", qwen: "通义千问", zhipu: "智谱", openai: "OpenAI", anthropic: "Anthropic", gemini: "Gemini" })[v] || "自定义";
+}
+function vendorOf(p) {
+  const u = (p.api_url || "").toLowerCase();
+  if (u.includes("ark.cn-beijing")) return "volc";
+  if (u.includes("deepseek")) return "deepseek";
+  if (u.includes("dashscope")) return "qwen";
+  if (u.includes("bigmodel")) return "zhipu";
+  if (u.includes("openai")) return "openai";
+  if (u.includes("anthropic")) return "anthropic";
+  if (u.includes("generativelanguage")) return "gemini";
+  return "";
+}
+let apiVendorFilter = "";
+function filterVendor(el, v) {
+  apiVendorFilter = v;
+  document.querySelectorAll(".vendor-tags .vt").forEach(t => t.classList.toggle("active", t.dataset.v === v));
+  renderApiCards();
+}
+function renderTabModel() {
+  const cfg = cfgData || {}; const eng = cfg.engine || {};
+  const backend = eng.backend === "local" ? "local" : "api";
+  $("settingsBody").innerHTML = `
+    <div class="section-card">
+      <h3>后端选择</h3>
+      <div class="row" style="gap:10px">
+        <button class="btn backend-btn ${backend === "local" ? "primary" : ""}" id="btnBackendLocal" onclick="setBackend('local')">本地 GGUF</button>
+        <button class="btn backend-btn ${backend === "api" ? "primary" : ""}" id="btnBackendApi" onclick="setBackend('api')">网络 API</button>
+      </div>
+      <select id="cfgBackend" style="display:none">
+        <option value="api" ${eng.backend === "api" ? "selected" : ""}>网络 API</option>
+        <option value="local" ${eng.backend === "local" ? "selected" : ""}>本地 GGUF</option>
+      </select>
+      <div class="hint" style="margin-top:8px">本地 GGUF 为默认内嵌引擎；网络 API 仅在你主动填写端点时连接，且只连你指定的地址。</div>
+    </div>
+    <div class="section-card" id="secLocal">
+      <h3>本地模型</h3>
+      <div class="field"><label>本地模型路径</label>
+        <div class="row"><input id="cfgLocal" value="${esc(eng.local_model || "")}" placeholder="模型路径"><button class="btn sm" onclick="pickLocalModel()">选择</button></div>
+      </div>
+      <div class="field"><label>模型目录</label>
+        <div class="hint">${esc(cfg.models_root || "")}</div>
+        <div id="modelList"><div class="muted">加载中...</div></div>
+      </div>
+    </div>
+    <div class="section-card" id="secApi">
+      <h3>网络 API 预设</h3>
+      <div class="sec-sub">每个 API 一张卡片，可编辑/删除；「默认」为当前生效预设。保存即生效，无需再点底部按钮。</div>
+      <div class="vendor-tags">
+        ${["", "volc", "deepseek", "qwen", "zhipu", "openai", "anthropic", "gemini"].map(v => `<span class="vt ${v === apiVendorFilter ? "active" : ""}" data-v="${v}" onclick="filterVendor(this, '${v}')">${vendorLabel(v)}</span>`).join("")}
+      </div>
+      <div id="apiCards"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm primary" onclick="openApiModal()">＋ 新建 API</button>
+        <button class="btn sm" onclick="openApiModal('coding')">＋ 新建 Coding Plan</button>
+      </div>
+    </div>`;
   renderApiCards();
   loadModels();
-  renderEngineStatus();
   syncBackendSections();
+}
+function setBackend(v) {
+  const sel = $("cfgBackend");
+  if (sel) sel.value = v;
+  const lb = $("btnBackendLocal"), ab = $("btnBackendApi");
+  if (lb) lb.classList.toggle("primary", v === "local");
+  if (ab) ab.classList.toggle("primary", v === "api");
+  syncBackendSections();
+}
+function syncBackendSections() {
+  const sel = $("cfgBackend");
+  if (!sel) return;
+  const v = sel.value;
+  const sl = $("secLocal"), sa = $("secApi");
+  if (sl) sl.style.display = v === "local" ? "" : "none";
+  if (sa) sa.style.display = v === "api" ? "" : "none";
+}
+function pickLocalModel() {
+  const v = prompt("输入本地 GGUF 模型路径：", $("cfgLocal").value || "");
+  if (v != null) $("cfgLocal").value = v.trim();
+}
+async function loadModels() {
+  const box = $("modelList"); if (!box) return;
+  try {
+    const d = await ipc("models_list", {});
+    const installed = d.installed || [];
+    box.innerHTML = installed.length ? installed.map(m => `
+      <div class="list-item"><div><div class="title">${esc(m.name || m.id || "")}</div><div class="sub">${esc(m.path || "")}</div></div></div>`).join("") : '<div class="empty">未安装本地模型</div>';
+  } catch (e) { box.innerHTML = '<div class="err-text">' + esc(e.message) + '</div>'; }
+}
+
+/* ---- 记忆 ---- */
+function renderTabMemory() {
+  const cfg = cfgData || {}; const ny = cfg.nightly || {};
+  $("settingsBody").innerHTML = `
+    <div class="section-card">
+      <h3>夜间空闲整理</h3>
+      <div class="hint">空闲时自动整理记忆柜、生成画像与索引；随配置一起保存。</div>
+      <div class="row" style="margin-top:6px">
+        <label class="switch"><input type="checkbox" id="cfgNightly" ${ny.enabled ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用夜间整理</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="switch"><input type="checkbox" id="cfgNightlyLocal" ${ny.use_local_model ? "checked" : ""}><span class="slider"></span></label><span class="muted">整理使用本地模型</span>
+      </div>
+    </div>
+    <div class="section-card">
+      <h3>开场回顾</h3>
+      <div class="hint">新会话开始时自动带入上次记忆摘要（open_session_context）。</div>
+      <div class="row" style="margin-top:6px">
+        <label class="switch"><input type="checkbox" id="cfgOpenCtx" ${cfg.open_session_context ? "checked" : ""}><span class="slider"></span></label><span class="muted">启用开场回顾</span>
+      </div>
+    </div>
+    <div class="row"><button class="btn primary" onclick="saveConfig()">保存配置</button></div>`;
+}
+
+/* ---- 数据与备份 ---- */
+function renderTabData() {
+  const cfg = cfgData || {};
+  $("settingsBody").innerHTML = `
+    <div class="section-card">
+      <h3>数据目录</h3>
+      <div class="field"><label>备份目录（backup_dir）</label>
+        <div class="row">
+          <input id="cfgBackup" value="${esc(cfg.backup_dir || "")}" style="flex:1">
+          <button class="btn sm" onclick="openFolder('backup')">打开</button>
+          <button class="btn sm" onclick="pickFolder('cfgBackup')">更改</button>
+        </div>
+      </div>
+      <div class="field"><label>产出目录（output_dir）</label>
+        <div class="row">
+          <input id="cfgOutput" value="${esc(cfg.output_dir || "")}" style="flex:1">
+          <button class="btn sm" onclick="openFolder('output')">打开</button>
+          <button class="btn sm" onclick="pickFolder('cfgOutput')">更改</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn sm primary" onclick="saveConfig()">保存目录</button>
+        <button class="btn sm" onclick="runBackupDefault()">一键备份</button>
+        <button class="btn sm" onclick="renderBackupList()">查看备份列表</button>
+        <span class="muted">数据目录：${esc(cfg.home || "")}</span>
+      </div>
+      <div id="backupList" style="margin-top:10px"></div>
+    </div>`;
+}
+
+/* ---- 关于 ---- */
+function renderTabAbout() {
+  const cfg = cfgData || {};
+  $("settingsBody").innerHTML = `
+    <div class="section-card">
+      <h3>关于</h3>
+      <div class="row"><span class="muted">Shadeling Agent · 由 Brickery 积木平台产出</span></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" onclick="reRunSetup()">重新运行首次引导</button>
+        <span class="muted" id="aboutHome">${esc(cfg.home || "")}</span>
+      </div>
+    </div>`;
+}
+function pickFolder(inputId) {
+  const v = prompt("输入目录路径：", $(inputId).value || "");
+  if (v != null) $(inputId).value = v.trim();
+}
+async function reRunSetup() {
+  if (!confirm("重新运行首次引导？当前配置不会丢失，引导页会重新打开。")) return;
+  location.href = "http://127.0.0.1:18766/";
 }
 function setBackend(v) {
   const sel = $("cfgBackend");
@@ -1493,10 +1673,10 @@ async function reRunSetup() {
   if (!confirm("重新运行首次引导？当前配置不会丢失，引导页会重新打开。")) return;
   location.href = "http://127.0.0.1:18766/";
 }
-let apiProfiles = [], apiActiveId = "";
 function renderApiCards() {
   const box = $("apiCards"); if (!box) return;
-  box.innerHTML = apiProfiles.map(p => `
+  const list = apiVendorFilter ? apiProfiles.filter(p => vendorOf(p) === apiVendorFilter) : apiProfiles;
+  box.innerHTML = list.map(p => `
     <div class="list-item" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:8px">
       <div>
         <div class="title">${esc(p.name || p.id)} ${p.id === apiActiveId ? '<span class="tag installed">默认</span>' : ""}</div>
@@ -1507,14 +1687,14 @@ function renderApiCards() {
         <button class="btn sm" onclick="delApiCard('${esc(p.id)}')">删</button>
         ${p.id !== apiActiveId ? `<button class="btn sm" onclick="setActiveApi('${esc(p.id)}')">设为默认</button>` : ""}
       </div>
-    </div>`).join("") || '<div class="empty">暂无 API 预设，点「＋ 新建 API」添加</div>';
+    </div>`).join("") || (apiVendorFilter ? '<div class="empty">该厂商下暂无预设</div>' : '<div class="empty">暂无 API 预设，点「＋ 新建 API」添加</div>');
 }
 let apiModalEditId = null;
 function openApiModal(idOrKind) {
   apiModalEditId = null;
   const m = $("apiModal"); if (!m) return;
   $("apiModalTitle").textContent = "新建 API 预设";
-  $("amName").value = ""; $("amUrl").value = ""; $("amModel").value = ""; $("amKey").value = ""; $("amTimeout").value = "60";
+  $("amVendor").value = ""; $("amName").value = ""; $("amUrl").value = ""; $("amModel").value = ""; $("amKey").value = ""; $("amTimeout").value = "60";
   if (idOrKind === "coding") {
     $("apiModalTitle").textContent = "新建 Coding Plan";
     $("amName").value = "我的 Coding Plan";
@@ -1522,10 +1702,18 @@ function openApiModal(idOrKind) {
     const p = apiProfiles.find(x => x.id === idOrKind); if (!p) return;
     apiModalEditId = idOrKind;
     $("apiModalTitle").textContent = "编辑 API 预设";
+    $("amVendor").value = vendorOf(p);
     $("amName").value = p.name || ""; $("amUrl").value = p.api_url || ""; $("amModel").value = p.api_model || "";
     $("amKey").value = p.api_key || ""; $("amTimeout").value = p.timeout || 60;
   }
   m.style.display = "flex";
+}
+function onVendorChange() {
+  const v = $("amVendor").value;
+  const t = VENDOR_TEMPLATES[v];
+  if (!t) return;
+  if (!apiModalEditId) { $("amName").value = t.name; $("amUrl").value = t.url; $("amModel").value = t.model; }
+  else { $("amUrl").value = t.url; $("amModel").value = t.model; }
 }
 function closeApiModal() { const m = $("apiModal"); if (m) m.style.display = "none"; }
 function saveApiModal() {
@@ -1547,14 +1735,21 @@ function saveApiModal() {
   }
   closeApiModal();
   renderApiCards();
+  saveApiProfiles();
 }
 function delApiCard(id) {
   if (!confirm("删除 API 预设「" + (apiProfiles.find(x => x.id === id) || {}).name + "」？")) return;
   apiProfiles = apiProfiles.filter(x => x.id !== id);
   if (apiActiveId === id) apiActiveId = apiProfiles.length ? apiProfiles[0].id : "";
   renderApiCards();
+  saveApiProfiles();
 }
-function setActiveApi(id) { apiActiveId = id; renderApiCards(); }
+function setActiveApi(id) { apiActiveId = id; renderApiCards(); saveApiProfiles(); }
+async function saveApiProfiles() {
+  try {
+    await ipc("config_set", { profiles: apiProfiles, active_profile_id: apiActiveId });
+  } catch (e) { alert("预设保存失败：" + e.message); }
+}
 async function renderEngineStatus() {
   const lDot = $("stLocalDot"), lTxt = $("stLocalText"), aDot = $("stApiDot"), aTxt = $("stApiText");
   if (!lDot) return;
@@ -1575,33 +1770,71 @@ async function renderEngineStatus() {
     }
   } catch (e) { lTxt.textContent = "引擎状态获取失败"; }
 }
-function pickLocalModel() {
-  const v = prompt("输入本地 GGUF 模型路径：", $("cfgLocal").value || "");
-  if (v != null) $("cfgLocal").value = v.trim();
+async function setExecMode() {
+  const mode = $("cfgMode").value;
+  const label = { normal: "工作模式", plan: "计划模式", accept_edits: "可信会话" }[mode] || mode;
+  try { await ipc("set_mode", { mode }); alert("执行模式已切换为：" + label); }
+  catch (e) { alert("切换失败：" + e.message); }
 }
-async function loadModels() {
-  const box = $("modelList"); if (!box) return;
+async function openFolder(kind) {
+  try { await ipc("open_folder", { kind }); } catch (e) { alert("打开失败：" + e.message); }
+}
+async function openFolderByPath(path) {
+  try { await ipc("open_folder", { path }); } catch (e) { alert("打开失败：" + e.message); }
+}
+async function runBackupDefault() {
+  try { const r = await ipc("backup_default", {}); alert("一键备份完成：\n" + (r.dest || r.detail || "已保存到默认备份目录")); }
+  catch (e) { alert("备份失败：" + e.message); }
+}
+async function renderBackupList() {
+  const box = $("backupList"); if (!box) return;
+  box.innerHTML = '<div class="muted">加载中...</div>';
   try {
-    const d = await ipc("models_list", {});
-    const installed = d.installed || [];
-    box.innerHTML = installed.length ? installed.map(m => `
-      <div class="list-item"><div><div class="title">${esc(m.name || m.id || "")}</div><div class="sub">${esc(m.path || "")}</div></div></div>`).join("") : '<div class="empty">未安装本地模型</div>';
+    const r = await ipc("backup_list", {});
+    const items = r.items || [];
+    box.innerHTML = items.length
+      ? items.map(b => `
+        <div class="list-item" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:8px">
+          <div><div class="title">${esc(b.name)}</div><div class="sub">${esc(b.path)} · ${b.items} 项</div></div>
+          <div class="row">
+            <button class="btn sm" onclick="openFolderByPath('${esc(b.path)}')">打开</button>
+            <button class="btn sm" onclick="restoreBackup('${esc(b.path)}')">恢复</button>
+          </div>
+        </div>`).join("")
+      : '<div class="empty">暂无备份，点「一键备份」创建</div>';
   } catch (e) { box.innerHTML = '<div class="err-text">' + esc(e.message) + '</div>'; }
 }
+async function restoreBackup(path) {
+  if (!confirm("从备份恢复将覆盖当前数据（会话/记忆/配置），确定继续？")) return;
+  try { await ipc("backup_restore", { src_dir: path }); alert("恢复完成"); }
+  catch (e) { alert("恢复失败：" + e.message); }
+}
 async function saveConfig() {
+  const has = (id) => !!$(id);
+  const engine = cfgData.engine || {};
+  const ny = cfgData.nightly || {};
   const params = {
-    backend: $("cfgBackend").value,
-    local_model: $("cfgLocal").value.trim(),
-    backup_dir: $("cfgBackup").value.trim(),
-    output_dir: $("cfgOutput").value.trim(),
-    tools_enabled: $("cfgTools").checked,
-    skills_enabled: $("cfgSkills").checked,
-    request_timeout: parseInt($("cfgTimeout").value, 10) || 60,
+    backend: has("cfgBackend") ? $("cfgBackend").value : (engine.backend || "local"),
+    local_model: has("cfgLocal") ? $("cfgLocal").value.trim() : (engine.local_model || ""),
+    backup_dir: has("cfgBackup") ? $("cfgBackup").value.trim() : (cfgData.backup_dir || ""),
+    output_dir: has("cfgOutput") ? $("cfgOutput").value.trim() : (cfgData.output_dir || ""),
+    tools_enabled: has("cfgTools") ? $("cfgTools").checked : !!cfgData.tools_enabled,
+    skills_enabled: has("cfgSkills") ? $("cfgSkills").checked : !!cfgData.skills_enabled,
+    request_timeout: has("cfgTimeout") ? (parseInt($("cfgTimeout").value, 10) || 60) : (cfgData.timeout || 60),
     profiles: apiProfiles,
     active_profile_id: apiActiveId,
+    open_session_context: has("cfgOpenCtx") ? $("cfgOpenCtx").checked : !!cfgData.open_session_context,
+    nightly: {
+      enabled: has("cfgNightly") ? $("cfgNightly").checked : !!ny.enabled,
+      use_local_model: has("cfgNightlyLocal") ? $("cfgNightlyLocal").checked : !!ny.use_local_model,
+    },
   };
-  try { await ipc("config_set", params); alert("配置已保存"); loadStatus(); }
-  catch (e) { alert("保存失败：" + e.message); }
+  try {
+    await ipc("config_set", params);
+    cfgData = Object.assign({}, cfgData, params);
+    alert("配置已保存");
+    loadStatus();
+  } catch (e) { alert("保存失败：" + e.message); }
 }
 
 /* ================= 医生 ================= */
