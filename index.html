@@ -206,8 +206,8 @@
       <h2>积木工坊 App</h2>
       <p class="desc">网页负责市场与下载；组装校验、产出 agent 安装包在本地 App 完成。</p>
       <div class="app-row">
-        <a class="btn btn-primary" href="https://github.com/suipu-boop/brickery/releases/download/v0.1.0/BrickeryWorkbench-0.1.0.dmg">下载 BrickeryWorkbench v0.1.0（.dmg，约 99 MB）</a>
-        <span class="app-meta">macOS 适用 · <a href="https://github.com/suipu-boop/brickery/releases" target="_blank" rel="noopener">查看全部版本</a></span>
+        <a class="btn btn-primary" id="dmg-accel" href="https://gh-proxy.com/https://github.com/suipu-boop/brickery/releases/download/v0.1.0/BrickeryWorkbench-0.1.0.dmg">加速下载 BrickeryWorkbench v0.1.0（.dmg，约 99 MB）</a>
+        <span class="app-meta">macOS 适用 · <a href="https://github.com/suipu-boop/brickery/releases" target="_blank" rel="noopener">查看全部版本</a> · <a href="https://github.com/suipu-boop/brickery/releases/download/v0.1.0/BrickeryWorkbench-0.1.0.dmg">直连 GitHub（慢）</a></span>
       </div>
     </div>
   </section>
@@ -232,8 +232,54 @@
 
 <script>
 "use strict";
-const MARKET_BASE = "https://raw.githubusercontent.com/suipu-boop/shadeling-bricks/main/skills/";
-const MARKET_INDEX = MARKET_BASE + "index.json";
+const REPO_SKILLS = "suipu-boop/shadeling-bricks";
+const JSDELIVR_BASE = "https://cdn.jsdelivr.net/gh/" + REPO_SKILLS + "@main/skills/";
+const RAW_BASE = "https://raw.githubusercontent.com/" + REPO_SKILLS + "/main/skills/";
+const MIRRORS = [
+  "https://gh-proxy.com/",
+  "https://ghfast.top/",
+  "https://ghproxy.net/",
+  "https://mirror.ghproxy.com/",
+];
+const RELEASE_DMG = "https://github.com/suipu-boop/brickery/releases/download/v0.1.0/BrickeryWorkbench-0.1.0.dmg";
+
+/* 市场文件候选地址：jsDelivr CDN 直连 → GitHub raw → 加速镜像兜底 */
+function marketUrls(path) {
+  return [
+    JSDELIVR_BASE + path,
+    RAW_BASE + path,
+    ...MIRRORS.map(m => m + RAW_BASE + path),
+  ];
+}
+
+async function fetchFirst(urls, opts) {
+  let lastErr = null;
+  for (const u of urls) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(u, Object.assign({ signal: ctrl.signal }, opts || {}));
+      clearTimeout(t);
+      if (res.ok) return res;
+      lastErr = new Error("HTTP " + res.status);
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("所有数据源均不可用");
+}
+
+/* 探测最快的可用镜像，失败则回退默认第一个 */
+async function pickMirror() {
+  for (const m of MIRRORS) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 4000);
+      const res = await fetch(m + RELEASE_DMG, { method: "HEAD", signal: ctrl.signal });
+      clearTimeout(t);
+      if (res.ok) return m;
+    } catch (e) { /* 不可达则试下一个 */ }
+  }
+  return MIRRORS[0];
+}
 
 let MARKET = null;          // index.json 原始数据
 let SKILLS = [];            // 展开后的积木列表
@@ -282,7 +328,7 @@ function triggerDownload(blob, filename) {
 /* ---------- 市场加载 ---------- */
 async function loadMarket() {
   try {
-    const res = await fetch(MARKET_INDEX);
+    const res = await fetchFirst(marketUrls("index.json"));
     if (!res.ok) throw new Error("HTTP " + res.status);
     MARKET = await res.json();
     const entries = MARKET.skills || [];
@@ -290,7 +336,7 @@ async function loadMarket() {
     const list = await Promise.all(entries.map(async (item) => {
       let detail = null;
       try {
-        const r = await fetch(MARKET_BASE + item.download_url);
+        const r = await fetchFirst(marketUrls(item.download_url));
         if (r.ok) detail = await r.json();
       } catch (e) { /* 单个失败不阻塞整体 */ }
       return {
@@ -550,6 +596,10 @@ searchInput.addEventListener("input", render);
 if (!window.isSecureContext) {
   toast("提示：需在 HTTPS 或 localhost 下访问，.brick 打包才能正常工作", true);
 }
+pickMirror().then(m => {
+  const a = $("#dmg-accel");
+  if (a) a.href = m + RELEASE_DMG;
+});
 loadMarket();
 </script>
 </body>
