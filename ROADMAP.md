@@ -41,6 +41,14 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 - B5 服务层已迁入（ipc / daemon / sessions / scheduler / gateway / confirm / interoception/ + loop），195 单测通过；test_surfacing 迁回，memory 69 单测通过
 - B6 产出链路已完成：produce.py 打包 brickery-runtime（runtime+memory）进 .app/Contents/Resources/，run.sh 改独立运行时入口（python3 -m brickery.runtime.ipc），不再依赖宿主 shadeling 命令；e2e 全链路通过，全量单测 263 passed + 1 skipped
 
+## 今日进度（2026-08-21）
+
+- **工坊直连 GitHub 改造（commit `e9eb86d`，已 push）**：取消本地 vault 缓存 + 同步按钮，改为在线直连 GitHub 积木库（`live_vault.py`：fetch_bricks_online 直连 raw + 镜像兜底，组装前按需拉取所选积木落盘），移除 /api/sync 接口与前端同步按钮，错误给明确文案+重试；方案见 `specs/workbench-live-market.md`
+- **新版重新打包发布（2026-08-21）**：重建内嵌 python（3.12.14 + llama-cpp-python 0.3.34），`scripts/build_workbench_app.sh` 重新打包，替换 GitHub Release v0.1.0 的 dmg（104MB，已三重验证），网页下载即新版
+- **代码推送**：brickery main 与 origin/main 完全同步（`e9eb86d` + site 镜像相关），无未推送提交
+- **本地清理旧安装**：删除 `/Applications/BrickeryWorkbench.app`、`~/.brickery`、旧版 dmg（新版在线直连，无需本地缓存）
+- **进度积木想法记录**（commit `bfed0ad`，已 push）：统一 progress 积木 + ipc 事件流 + 前端进度条渲染，想法备忘见 `specs/idea-progress-brick.md`（待细化设计）
+
 ## 今日进度（2026-08-17）
 
 - **工坊界面交互重设计**（commit `71f8b88`，已 push）：积木库点击即选中转移组装区（renderBrickList 过滤 selected），chip 点击展开/缩回详情；方案见 `specs/workbench_ui_redesign.md`
