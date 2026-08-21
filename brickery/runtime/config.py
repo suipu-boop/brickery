@@ -76,7 +76,6 @@ class Config:
     mode: str = "normal"                     # 执行模式：normal / plan / accept_edits
     max_context_tokens: int = 8192          # n_ctx 治理：工具结果上限不得超此预算
     scheduler_max_workers: int = 2          # P2 调度内核 worker 池大小（M4 并发推理兜底）
-    skill_repo_url: str = ""                # 在线技来源地址（空=不连市场；file:// 或 http(s)://）
     open_session_context: bool = True       # 新会话开场主动回顾近期上下文（消灭失忆感；可关）
     backup_dir: Path = field(default_factory=lambda: Path.home() / "Documents" / "Brickery" / "Backups")
     output_dir: Path = field(default_factory=lambda: Path.home() / "Documents" / "Brickery" / "Output")
@@ -120,7 +119,6 @@ class Config:
             "mode": self.mode,
             "max_context_tokens": self.max_context_tokens,
             "scheduler_max_workers": self.scheduler_max_workers,
-            "skill_repo_url": self.skill_repo_url,
             "open_session_context": self.open_session_context,
             "backup_dir": str(self.backup_dir),
             "output_dir": str(self.output_dir),
@@ -150,7 +148,6 @@ def load_config(home: Optional[Path] = None,
     mode = "normal"
     max_context_tokens = 8192
     scheduler_max_workers = 2
-    skill_repo_url = ""
     open_session_context = True
     chat_model = ""
     bricks_enabled = False
@@ -192,7 +189,6 @@ def load_config(home: Optional[Path] = None,
                 scheduler_max_workers = max(1, int(raw.get("scheduler_max_workers", 2)))
             except (TypeError, ValueError):
                 scheduler_max_workers = 2
-            skill_repo_url = raw.get("skill_repo_url", "")
             open_session_context = bool(raw.get("open_session_context", True))
             chat_model = raw.get("chat_model", "")
             backup_dir = Path(raw.get("backup_dir", str(backup_dir))).expanduser()

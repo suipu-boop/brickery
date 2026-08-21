@@ -1068,27 +1068,14 @@ class IpcServer:
     # 网络全在 Python 侧（与 WebFetch/API 一致），优雅失败不崩溃。
 
     # 公网技能市场默认源（仅 index.json + Release 二进制，不含任何技能文件，
-    # 体积为零，符合「空白安装包」原则）。正式 .app 未配置且无本地 fixtures 时自动连接，
-    # 用户开箱即连、无需手填 URL；仍可在设置页改为私有源或离线。
+    # 体积为零，符合「空白安装包」原则）。市场组件固定从 GitHub 拉取，
+    # 无自定义源、无本地离线源兜底；离线安装走「积木包导入」通道。
     DEFAULT_PUBLIC_SKILL_REPO_URL = (
         "https://raw.githubusercontent.com/suipu-boop/shadeling-bricks/main/skills/index.json"
     )
 
     def _resolve_skill_repo_url(self) -> str:
-        """返回实际使用的技能源地址（优先级由高到低）：
-
-        - 用户显式设置的 skill_repo_url 优先（支持 UI 行内热切换、落盘）；
-        - 否则探测本地仓库 / 开发包内的 fixtures/skill_repo（仅开发态，或构建时显式
-          BUNDLE_SKILLS=1 才存在）：存在则返回 file:// 地址，供开发 / 离线演示；
-        - 正式安装包【不含】此目录，则回退到公网默认源（开箱即连）。
-        """
-        if self.config.skill_repo_url:
-            return self.config.skill_repo_url
-        # runtime/ipc.py → runtime/ → Shadeling 包根 → fixtures/skill_repo
-        runtime_dir = Path(__file__).resolve().parent
-        candidate = runtime_dir.parent / "fixtures" / "skill_repo"
-        if (candidate / "index.json").exists():
-            return "file://" + str(candidate)
+        """返回积木市场源地址：固定公网 GitHub 默认源。"""
         return self.DEFAULT_PUBLIC_SKILL_REPO_URL
 
     def _skill_library(self) -> SkillLibrary:
@@ -1761,7 +1748,6 @@ class IpcServer:
             "max_context_tokens": self.config.max_context_tokens,
             "home": str(self.config.home),
             "models_root": str(self.config.models_root),
-            "skill_repo_url": self.config.skill_repo_url,
             "backup_dir": str(self.config.backup_dir),
             "output_dir": str(self.config.output_dir),
             "profiles": self.config.profiles,
@@ -1817,9 +1803,6 @@ class IpcServer:
             kwargs = {k: params[k] for k in
                       ("local_model", "api_url", "api_key", "api_model")
                       if k in params}
-            # 在线技能源地址（§3.x）：空串/未设=走默认（开发态本地/正式包公网）；也可显式填 file:// 或 http(s)://
-            if "skill_repo_url" in params:
-                self.config.skill_repo_url = str(params["skill_repo_url"]).strip()
             # 备份/产出目录（§用户数据管理）：显式填则持久化；空串/未设=走默认派生
             if "backup_dir" in params and params["backup_dir"]:
                 self.config.backup_dir = Path(str(params["backup_dir"])).expanduser()

@@ -368,9 +368,8 @@ def _bundle_runtime(resources: Path) -> None:
 
     底座来源优先级（用户拍板）：GitHub 拉下的 `~/.brickery/base/brickery` 优先
     （最终用户本地无底座），本地仓库仅作开发兜底。
-    排除 __pycache__ / tests / web（运行时不需要）；fixtures/skill_repo 必须携带：
-    它是「积木市场」的离线源（ipc._resolve_skill_repo_url 探测到即用 file:// 本地源，
-    避免首启无缓存窗口依赖公网 GitHub 拉取失败导致市场页空白）。
+    排除 __pycache__ / tests / web（运行时不需要）；市场组件固定从公网 GitHub
+    拉取，不携带离线源；离线安装走「积木包导入」通道。
     """
     base_src = Path.home() / ".brickery" / "base" / "brickery"
     local_src = Path(__file__).resolve().parent  # brickery/ 包目录
