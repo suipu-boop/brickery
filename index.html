@@ -131,6 +131,15 @@
   .panel h2 { font-size: 17px; margin-bottom: 6px; }
   .panel .desc { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
   .app-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .mirror-select {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+  }
   .app-meta { font-size: 13px; color: var(--text-dim); }
   .app-meta b { color: var(--text); }
   .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 8px; }
@@ -207,6 +216,13 @@
       <p class="desc">网页负责市场与下载；组装校验、产出 agent 安装包在本地 App 完成。</p>
       <div class="app-row">
         <a class="btn btn-primary" id="dmg-accel" href="https://gh-proxy.com/https://github.com/suipu-boop/brickery/releases/download/v0.1.0/BrickeryWorkbench-0.1.0.dmg">加速下载 BrickeryWorkbench v0.1.0（.dmg，约 99 MB）</a>
+        <select id="mirror-select" class="mirror-select" title="切换下载源，慢就换一个">
+          <option value="https://gh-proxy.com/">gh-proxy.com（默认，当前最快）</option>
+          <option value="https://ghfast.top/">ghfast.top</option>
+          <option value="https://ghproxy.net/">ghproxy.net</option>
+          <option value="https://mirror.ghproxy.com/">mirror.ghproxy.com</option>
+          <option value="">直连 GitHub（很慢）</option>
+        </select>
         <span class="app-meta">macOS 适用 · <a href="https://github.com/suipu-boop/brickery/releases" target="_blank" rel="noopener">查看全部版本</a> · <a href="https://github.com/suipu-boop/brickery/releases/download/v0.1.0/BrickeryWorkbench-0.1.0.dmg">直连 GitHub（慢）</a></span>
       </div>
     </div>
@@ -268,18 +284,7 @@ async function fetchFirst(urls, opts) {
 }
 
 /* 探测最快的可用镜像，失败则回退默认第一个 */
-async function pickMirror() {
-  for (const m of MIRRORS) {
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 4000);
-      const res = await fetch(m + RELEASE_DMG, { method: "HEAD", signal: ctrl.signal });
-      clearTimeout(t);
-      if (res.ok) return m;
-    } catch (e) { /* 不可达则试下一个 */ }
-  }
-  return MIRRORS[0];
-}
+
 
 let MARKET = null;          // index.json 原始数据
 let SKILLS = [];            // 展开后的积木列表
@@ -596,10 +601,17 @@ searchInput.addEventListener("input", render);
 if (!window.isSecureContext) {
   toast("提示：需在 HTTPS 或 localhost 下访问，.brick 打包才能正常工作", true);
 }
-pickMirror().then(m => {
+$("#mirror-select").onchange = () => {
+  const m = $("#mirror-select").value;
   const a = $("#dmg-accel");
-  if (a) a.href = m + RELEASE_DMG;
-});
+  if (m) {
+    a.href = m + RELEASE_DMG;
+    a.textContent = "加速下载 BrickeryWorkbench v0.1.0（.dmg，约 99 MB）";
+  } else {
+    a.href = RELEASE_DMG;
+    a.textContent = "直接下载 BrickeryWorkbench v0.1.0（很慢）";
+  }
+};
 loadMarket();
 </script>
 </body>
