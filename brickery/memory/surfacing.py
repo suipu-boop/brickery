@@ -199,7 +199,8 @@ def surfacing_for(memory, query: str, project: str | None = None,
                   limit: int = 8, gate: Optional[SurfaceGate] = None,
                   recent_history: Optional[List[str]] = None,
                   idle_seconds: float = 0.0,
-                  shadow: Optional[ShadowEngine] = None) -> List[dict]:
+                  shadow: Optional[ShadowEngine] = None,
+                  sessions: Optional[list] = None) -> List[dict]:
     """组合 recall + 闸门，返回应注入的记忆片段（O2 条件触发）。
 
     流程：先 recall 拿相关性×时间衰减候选 → 闸门判定是否注入 →
@@ -208,8 +209,10 @@ def surfacing_for(memory, query: str, project: str | None = None,
 
     注意：仅做「是否浮现 + 取哪些」的检索决策；记忆内容本身由调用方注入 prompt。
     无引擎也可工作（gate 是纯规则）。
+    sessions：会话白名单过滤（None=全局跨会话召回，传列表则仅召回这些会话）。
     """
-    candidates = memory.recall(query, project=project, limit=limit)
+    candidates = memory.recall(query, project=project, limit=limit,
+                               sessions=sessions)
     if not candidates:
         return []
     if gate is None:

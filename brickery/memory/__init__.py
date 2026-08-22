@@ -129,22 +129,25 @@ class MemorySystem:
 
     # §2 召回
     def recall(self, query: str, project: str | None = None, limit: int = 10,
-               now=None) -> List[dict]:
-        return recall.recall(query, project=project, limit=limit, now=now)
+               now=None, sessions: Optional[list] = None) -> List[dict]:
+        return recall.recall(query, project=project, limit=limit, now=now,
+                             sessions=sessions)
 
     # §3.5 浮现（条件触发，O2）
     def surface(self, query: str, project: str | None = None, limit: int = 8,
                 gate=None, recent_history=None, idle_seconds: float = 0.0,
-                shadow=None) -> List[dict]:
+                shadow=None, sessions: Optional[list] = None) -> List[dict]:
         """组合 recall + 闸门，返回应注入的记忆片段（O2 条件触发）。
 
         gate 缺省用默认 SurfaceGate（指代词 / 话题跳变 / 长间隔）。
         不触发返回空（否决每轮灌）。无引擎也可工作（gate 是纯规则）。
+        sessions：会话白名单过滤（None=全局跨会话召回，传列表则仅召回这些会话）。
         shadow：本地小模型（影子），传入则让其从候选里挑最相关的（蓝图 A 档）。
         """
         return surfacing.surfacing_for(
             self, query, project=project, limit=limit, gate=gate,
-            recent_history=recent_history, idle_seconds=idle_seconds, shadow=shadow,
+            recent_history=recent_history, idle_seconds=idle_seconds,
+            shadow=shadow, sessions=sessions,
         )
 
     # §3.6 固定核（O8 手填 / O9 导出）

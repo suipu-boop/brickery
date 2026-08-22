@@ -260,7 +260,8 @@ class AgentLoop:
     def run(self, user_message: str, project: str = "",
             history: Optional[list] = None,
             open_context_text: Optional[str] = None,
-            on_token: Optional[Callable[[str], None]] = None) -> str:
+            on_token: Optional[Callable[[str], None]] = None,
+            memory_sessions: Optional[list] = None) -> str:
         self._tool_latencies = []
         # 1. 先存档用户输入（保证已存档数据不丢，即使后续推理失败）
         self.memory.archive(self.session, [user_message], project=project)
@@ -278,7 +279,7 @@ class AgentLoop:
             surface_cands = self.memory.surface(
                 user_message, project=project,
                 recent_history=recent_history, idle_seconds=idle_seconds,
-                shadow=self.shadow,
+                shadow=self.shadow, sessions=memory_sessions,
             )
             if isinstance(surface_cands, list):
                 memory_text = self._format_memory(surface_cands)

@@ -456,44 +456,50 @@ class ApiEngine:
         payload = {
             "model": self.api_model or "gpt-4o-mini",
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": int(kw.get("max_tokens", 900)),
+            "max_tokens": int(kw.get("max_tokens", 12000)),
             "temperature": float(kw.get("temperature", 0.7)),
         }
         if tools:
             payload["tools"] = tools
-        if stream:
-            return self._run_turn_stream(payload, on_token,
-                                         timeout=int(kw.get("timeout", 60)))
-        data = self._request_json(payload, timeout=int(kw.get("timeout", 60)))
-        msg = data["choices"][0]["message"]
-        text = msg.get("content") or ""
-        calls: List[ToolCall] = []
-        for tc in (msg.get("tool_calls") or []):
-            fn = tc.get("function", {})
-            raw = fn.get("arguments") or "{}"
+        # 空响应自动重试：reasoning 模型（GLM 系等）偶发返回空 choices，
+        # 与网络/鉴权错误不同，属可自愈的服务端波动，重试 1 次即可显著降低失败率。
+        last_exc: Optional[RuntimeError] = None
+        for attempt in range(2):
             try:
-                args = json.loads(raw) if isinstance(raw, str) else raw
-            except (json.JSONDecodeError, ValueError, TypeError):
-                args = {}
-            if not isinstance(args, dict):
-                args = {}
-            calls.append(ToolCall(name=fn.get("name", ""), arguments=args))
-        # 兜底：兼容部分本地 OpenAI 兼容服务（llama.cpp / ollama）把调用写进 content
-        if not calls and text:
-            calls = _parse_tool_calls_from_content(text)
-            if calls:
-                text = ""
-        # P2 空回复守卫：空内容且无工具调用 = 无效响应，转为可见错误而非静默无响应。
-        # 这是「思考一下就没反应」的主因之一——端点偶尔返回空 choices，原代码会
-        # 把空串存档，前端看不到任何气泡。
-        if not text and not calls:
-            raise RuntimeError(
-                f"模型返回了空内容（api_model={self.api_model or '默认'}）。"
-                f"请检查 api_model 是否正确、或该端点是否支持该模型；可尝试更换模型或重试。")
-        # 坑⑥ 修复：带出真实 token 用量（含 prompt 缓存命中），供内感受/诊断量化。
-        # 用量字段缺失时安全降级为 None（不假设有缓存）。
-        usage = _parse_usage(data.get("usage"))
-        return EngineResult(text=text, tool_calls=calls, usage=usage)
+                if stream:
+                    return self._run_turn_stream(payload, on_token,
+                                                 timeout=int(kw.get("timeout", 60)))
+                data = self._request_json(payload, timeout=int(kw.get("timeout", 60)))
+                msg = data["choices"][0]["message"]
+                text = msg.get("content") or ""
+                calls: List[ToolCall] = []
+                for tc in (msg.get("tool_calls") or []):
+                    fn = tc.get("function", {})
+                    raw = fn.get("arguments") or "{}"
+                    try:
+                        args = json.loads(raw) if isinstance(raw, str) else raw
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        args = {}
+                    if not isinstance(args, dict):
+                        args = {}
+                    calls.append(ToolCall(name=fn.get("name", ""), arguments=args))
+                # 兜底：兼容部分本地 OpenAI 兼容服务（llama.cpp / ollama）把调用写进 content
+                if not calls and text:
+                    calls = _parse_tool_calls_from_content(text)
+                    if calls:
+                        text = ""
+                if not text and not calls:
+                    raise RuntimeError(
+                        f"模型返回了空内容（api_model={self.api_model or '默认'}）。"
+                        f"请检查 api_model 是否正确、或该端点是否支持该模型；可尝试更换模型或重试。")
+                usage = _parse_usage(data.get("usage"))
+                return EngineResult(text=text, tool_calls=calls, usage=usage)
+            except RuntimeError as e:
+                if "空内容" not in str(e):
+                    raise
+                last_exc = e
+        raise last_exc  # type: ignore[misc]
+
 
     def _run_turn_stream(self, payload: dict, on_token: Optional[Callable[[str], None]],
                          *, timeout: int = 60) -> "EngineResult":

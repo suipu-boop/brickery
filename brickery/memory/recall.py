@@ -37,19 +37,31 @@ def recall(
     project: str | None = None,
     limit: int = 10,
     now: datetime | None = None,
+    sessions: Optional[list] = None,
 ) -> List[dict]:
-    """返回按 相关性×时间衰减 排序的影子列表。"""
+    """返回按 相关性×时间衰减 排序的影子列表。
+
+    sessions：可选会话白名单过滤。传 None（默认）保持跨会话全局召回
+    （§2 设计行为）；传 ["sess-X"] 则仅从指定会话召回，用于多会话隔离。
+    """
     q_kw = set(KeywordExtractor()._tokenize(query))
     if not q_kw:
         return []
 
+    conds, params = [], []
+    if project:
+        conds.append("project=?")
+        params.append(project)
+    if sessions:
+        placeholders = ",".join("?" * len(sessions))
+        conds.append(f"session_id IN ({placeholders})")
+        params.extend(sessions)
+    where = ("WHERE " + " AND ".join(conds)) if conds else ""
+
     with memory_conn() as c:
-        if project:
-            rows = c.execute(
-                "SELECT * FROM conversation_records WHERE project=?", (project,)
-            ).fetchall()
-        else:
-            rows = c.execute("SELECT * FROM conversation_records").fetchall()
+        rows = c.execute(
+            f"SELECT * FROM conversation_records {where}", params
+        ).fetchall()
 
     q_raw = (query or "").strip()
     scored = []
