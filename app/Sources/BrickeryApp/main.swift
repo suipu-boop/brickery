@@ -15,21 +15,26 @@ let configPath = dataDir.appendingPathComponent("config.json")
 let GUIDE_URL = "http://127.0.0.1:18766/"
 let CHAT_URL = "http://127.0.0.1:18767/"
 let WORKBENCH_URL = "http://127.0.0.1:8765/"
+let FACTORY_URL = "http://127.0.0.1:8767/"
 
-// MARK: - 运行模式（积木工作台 / suipu-assistant 三服务）
+// MARK: - 运行模式（积木工作台 / 积木加工厂 / suipu-assistant 三服务）
 enum RunMode {
     case assistant   // 三服务模式：ipc 18765 / setup_wizard 18766 / chat_ui 18767
     case workbench   // 积木工作台模式：web.server 8765
+    case factory     // 积木加工厂模式：factory.server 8767
 }
 
 func detectRunMode() -> RunMode {
-    // 1) 命令行参数优先：--workbench / --assistant
+    // 1) 命令行参数优先：--factory / --workbench / --assistant
     let args = CommandLine.arguments
+    if args.contains("--factory") { return .factory }
     if args.contains("--workbench") { return .workbench }
     if args.contains("--assistant") { return .assistant }
-    // 2) 环境变量 BRICKERY_WORKBENCH=1
+    // 2) 环境变量 BRICKERY_FACTORY=1 / BRICKERY_WORKBENCH=1
+    if ProcessInfo.processInfo.environment["BRICKERY_FACTORY"] == "1" { return .factory }
     if ProcessInfo.processInfo.environment["BRICKERY_WORKBENCH"] == "1" { return .workbench }
-    // 3) 按 bundleIdentifier 推断：dev.brickery.workbench → 积木工作台
+    // 3) 按 bundleIdentifier 推断：dev.brickery.factory → 加工厂；dev.brickery.workbench → 工作台
+    if let bid = Bundle.main.bundleIdentifier, bid.contains("factory") { return .factory }
     if let bid = Bundle.main.bundleIdentifier, bid.contains("workbench") { return .workbench }
     return .assistant
 }
@@ -110,6 +115,22 @@ final class ServiceManager {
         NSLog("BrickeryApp: startWorkbench() 完成，children=\(children.count)")
     }
 
+    func startFactory() {
+        NSLog("BrickeryApp: startFactory() 开始")
+        try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+        let env: [String: String] = [
+            "PYTHONPATH": runtimeDir.path,
+            "BRICKERY_NO_WATCHDOG": "1",
+            "BRICKERY_HOME": dataDir.path,
+        ]
+        if !portInUse(8767) {
+            NSLog("BrickeryApp: 启动积木加工厂 factory.server")
+            launch(["-m", "factory.server", "--port", "8767"],
+                   env: env, logName: "factory.log")
+        }
+        NSLog("BrickeryApp: startFactory() 完成，children=\(children.count)")
+    }
+
     func stop() {
         for p in children { p.terminate() }
     }
@@ -127,6 +148,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if mode == .workbench {
             window.title = "积木工作台"
             services.startWorkbench()
+        } else if mode == .factory {
+            window.title = "积木加工厂"
+            services.startFactory()
         } else {
             services.start()
         }
@@ -141,6 +165,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch mode {
         case .workbench:
             url = URL(string: WORKBENCH_URL)!
+        case .factory:
+            url = URL(string: FACTORY_URL)!
         case .assistant:
             let configured = FileManager.default.fileExists(atPath: configPath.path)
             url = URL(string: configured ? CHAT_URL : GUIDE_URL)!
