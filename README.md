@@ -9,7 +9,14 @@ AIGC:
     ReservedCode2: Lw7Kg4cms2CTn7Es1qybwLgeQjJT/746p6cYtg3AM6cRC3lvDL64g1/vLDBIwicyPb3+3RY2jIv4NEITVLRmVXEZXfjF8gmYOqVe98ArjT6CGEy42+zLef0/73JK25tVt+2yJkZqNPEEPzVpVhRCQQZSA0kihINSKw/BDOyaru+wdduH6drSpCBrSRM=
 ---
 
-# Brickery · 造 agent 的工厂
+# Brickery · 生成 agent（agent 底座 + 产出链路）
+
+**三项目之一（2026-08-22 拆分）**：本仓库 = **生成 agent**，负责 agent 内核运行时、装配、安装引导、聊天界面、.brick 打包/导入与产出链路。
+
+- **积木工坊** → 独立仓库 [brickery-workbench](https://github.com/suipu-boop/brickery-workbench)（市场浏览/组装/网页分发）
+- **生成 agent** → 本仓库 brickery（内核/底座/产出）
+- **积木加工厂** → 独立仓库 [brick-vault](https://github.com/suipu-boop/brick-vault)（积木库/契约/验收）
+- 三项目关系与接口契约见 [brickery-meta/ARCHITECTURE.md](https://github.com/suipu-boop/brickery-meta)（会话启动先读）
 
 一个**独立的「造 agent 的工厂」**：用户拖积木拼装，产出**独立可运行的 agent**（独立安装包）。
 
