@@ -119,3 +119,51 @@ class TestEngineRouter(RuntimeTestCase):
         router = EngineRouter(eng, local_engine=_boom, api_engine=_boom)
         with self.assertRaises(Exception):
             router.complete("hi")
+
+    # ----- 引擎容错：断连 / 超时 / 限流降级（2026-08-22 补）-----
+
+    def _api_engine_raising(self, message: str) -> MagicMock:
+        api = MagicMock()
+        api.complete.side_effect = RuntimeError(message)
+        return api
+
+    def test_api_disconnect_falls_back_to_local(self):
+        eng = EngineConfig(backend="api", api_url="https://user.example/v1")
+        api = self._api_engine_raising("网络 API 请求失败（无法连接 user.example）：refused")
+        router = EngineRouter(eng, local_engine=lambda p: "本地兜底",
+                              api_engine=api)
+        self.assertEqual(router.complete("hi"), "本地兜底")
+
+    def test_api_timeout_falls_back_to_local(self):
+        eng = EngineConfig(backend="api", api_url="https://user.example/v1")
+        api = self._api_engine_raising("网络 API 请求超时（user.example，>60s 无响应）。")
+        router = EngineRouter(eng, local_engine=lambda p: "本地兜底",
+                              api_engine=api)
+        self.assertEqual(router.complete("hi"), "本地兜底")
+
+    def test_api_rate_limit_falls_back_to_local(self):
+        eng = EngineConfig(backend="api", api_url="https://user.example/v1")
+        api = self._api_engine_raising("网络 API 触发限流 / 额度耗尽（user.example 返回 429）。")
+        router = EngineRouter(eng, local_engine=lambda p: "本地兜底",
+                              api_engine=api)
+        self.assertEqual(router.complete("hi"), "本地兜底")
+
+    def test_degrade_once_no_retry(self):
+        # 降级单次即止：API 失败后本地兜底成功，不再二次调用 API（不重试网络类错误）
+        eng = EngineConfig(backend="api", api_url="https://user.example/v1")
+        api = self._api_engine_raising("网络 API 请求失败（无法连接 user.example）：refused")
+        router = EngineRouter(eng, local_engine=lambda p: "本地兜底",
+                              api_engine=api)
+        self.assertEqual(router.complete("hi"), "本地兜底")
+        api.complete.assert_called_once()
+
+    def test_unavailable_local_does_not_fallback(self):
+        # 条件化降级闸门：本地 is_available()=False 时 API 失败不降级，抛错
+        eng = EngineConfig(backend="api", api_url="https://user.example/v1")
+        api = self._api_engine_raising("网络 API 请求失败（无法连接 user.example）：refused")
+        local = MagicMock()
+        local.is_available.return_value = False
+        router = EngineRouter(eng, local_engine=local, api_engine=api)
+        with self.assertRaises(RuntimeError):
+            router.complete("hi")
+        local.complete.assert_not_called()
