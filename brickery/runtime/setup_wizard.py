@@ -538,6 +538,15 @@ class _Handler(BaseHTTPRequestHandler):
         eng.api_model = data.get("api_model", eng.api_model)
         eng.api_name = data.get("api_name", eng.api_name)
         eng.local_model = data.get("local_model", eng.local_model)
+        # 同步激活 profile：ipc/status 检测读 active profile，不同步会误报"API 未配置"
+        for p in (cfg.profiles or []):
+            if p.get("id") == cfg.active_profile_id:
+                p["backend"] = eng.backend
+                p["api_url"] = eng.api_url
+                p["api_key"] = eng.api_key
+                p["api_model"] = eng.api_model
+                p["api_name"] = eng.api_name
+                p["local_model"] = eng.local_model
         if data.get("backup_dir"):
             cfg.backup_dir = Path(data["backup_dir"]).expanduser()
         if data.get("output_dir"):

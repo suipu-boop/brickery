@@ -1906,7 +1906,7 @@ async function openFolderByPath(path) {
   try { await ipc("open_folder", { path }); } catch (e) { alert("打开失败：" + e.message); }
 }
 async function runBackupDefault() {
-  try { const r = await ipc("backup_default", {}); alert("一键备份完成：\n" + (r.dest || r.detail || "已保存到默认备份目录")); }
+  try { const r = await ipc("backup_default", {}); alert("一键备份完成：\\n" + (r.dest || r.detail || "已保存到默认备份目录")); }
   catch (e) { alert("备份失败：" + e.message); }
 }
 async function renderBackupList() {
