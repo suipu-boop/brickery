@@ -57,18 +57,41 @@ def _http_get(url: str, timeout: int = DEFAULT_TIMEOUT) -> Tuple[Optional[bytes]
         return None, f"读取失败：{e}"
 
 
-def _mirror_url(url: str) -> str:
-    """GitHub 下载统一走 gh-proxy 镜像（当前网络环境直连 github 大文件不稳定）。
+# GitHub 下载镜像前缀，按优先级排列（直连 github 大文件不稳定，实测 gh-proxy 12.7MB/s；
+# ghfast.top 为备选。后续可继续追加，如 gh-proxy → ghfast → 直连）。
+MIRROR_PREFIXES = ("https://gh-proxy.com/", "https://ghfast.top/")
 
-    已带镜像前缀则原样返回；仅对 github.com / raw.githubusercontent.com 加前缀，
-    本地 file:// 或其它域名不受影响。
+
+def _mirror_url(url: str) -> str:
+    """GitHub 下载统一走首选镜像（兼容入口，等价于 _mirror_candidates(url)[0]）。"""
+    return _mirror_candidates(url)[0]
+
+
+def _mirror_candidates(url: str) -> List[str]:
+    """返回按优先级排列的候选下载 URL 列表。
+
+    - 已带任一镜像前缀 → 原样单候选（避免镜像套镜像）；
+    - github.com / raw.githubusercontent.com → [镜像1+url, 镜像2+url, 原url]；
+    - 其它（含 file:// 本地源）→ 原样单候选。
     """
-    if url.startswith("https://gh-proxy.com/"):
-        return url
+    for p in MIRROR_PREFIXES:
+        if url.startswith(p):
+            return [url]
     for prefix in ("https://github.com/", "https://raw.githubusercontent.com/"):
         if url.startswith(prefix):
-            return "https://gh-proxy.com/" + url
-    return url
+            return [p + url for p in MIRROR_PREFIXES] + [url]
+    return [url]
+
+
+def _http_get_mirrored(url: str, timeout: int = DEFAULT_TIMEOUT) -> Tuple[Optional[bytes], Optional[str]]:
+    """按镜像优先级逐个尝试下载，全部失败返回最后一个错误。"""
+    last_err = None
+    for u in _mirror_candidates(url):
+        data, err = _http_get(u, timeout)
+        if err is None:
+            return data, None
+        last_err = err
+    return None, last_err
 
 
 def _split_version(v: str) -> Tuple[int, ...]:
@@ -402,7 +425,7 @@ class SkillLibrary:
         返回 (成功, 错误)。网络失败返回错误、不崩溃、不静默。
         二进制较大（如 editor_sdk ~193MB），用较长超时；本地源仍很快。
         """
-        url = _mirror_url(skill.binary_url)
+        url = skill.binary_url
         from urllib.parse import urlparse
         name = Path(urlparse(url).path).name or f"{skill.source}_engine"
         dest_dir = self.home / "bin" / (skill.source or skill.name)
@@ -415,7 +438,7 @@ class SkillLibrary:
         if dest.exists() and (skill.binary_size == 0 or dest.stat().st_size == skill.binary_size):
             dest.chmod(0o755)
             return True, None
-        data, err = _http_get(url, timeout=max(self.timeout, 600))
+        data, err = _http_get_mirrored(url, timeout=max(self.timeout, 600))
         if err:
             return False, err
         if not data:

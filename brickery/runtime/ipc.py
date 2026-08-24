@@ -1076,8 +1076,20 @@ class IpcServer:
         "https://gh-proxy.com/https://raw.githubusercontent.com/suipu-boop/shadeling-bricks/main/skills/index.json"
     )
 
+    def _vendored_repo_url(self) -> Optional[str]:
+        """安装包内嵌积木源快照（brickery-runtime/vendored/skills/index.json）的 file:// URI。
+
+        构建期由 brickery-workbench 的 build_workbench_app.sh 把积木库快照拷入安装包，
+        存在则离线可用；开发环境无快照时返回 None，走在线镜像源。
+        """
+        p = Path(__file__).resolve().parent.parent.parent / "vendored" / "skills" / "index.json"
+        return p.as_uri() if p.exists() else None
+
     def _resolve_skill_repo_url(self) -> str:
-        """返回积木市场源地址：固定公网 GitHub 默认源。"""
+        """返回积木市场源地址：优先本地 vendored 快照（离线可用），否则公网镜像源。"""
+        vendored = self._vendored_repo_url()
+        if vendored:
+            return vendored
         return self.DEFAULT_PUBLIC_SKILL_REPO_URL
 
     def _skill_library(self) -> SkillLibrary:
