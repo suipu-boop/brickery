@@ -681,7 +681,7 @@ async function loadModelSel() {
   if (currentSessionId) {
     try { const s = await ipc("session_get", { session_id: currentSessionId }); cur = s.profile_id || cur; } catch (e) {}
   }
-  sel.innerHTML = profiles.map(p => `<option value="${esc(p.id)}" ${p.id === cur ? "selected" : ""}>${esc(p.name || p.id)}</option>`).join("") || '<option value="">默认</option>';
+  sel.innerHTML = profiles.map(p => `<option value="${esc(p.id)}" ${p.id === cur ? "selected" : ""}>${esc(p.api_model || p.api_name || p.name || p.id)}</option>`).join("") || '<option value="">默认</option>';
 }
 async function onModelSelChange() {
   const sel = $("modelSel");
