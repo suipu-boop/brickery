@@ -57,6 +57,20 @@ def _http_get(url: str, timeout: int = DEFAULT_TIMEOUT) -> Tuple[Optional[bytes]
         return None, f"读取失败：{e}"
 
 
+def _mirror_url(url: str) -> str:
+    """GitHub 下载统一走 gh-proxy 镜像（当前网络环境直连 github 大文件不稳定）。
+
+    已带镜像前缀则原样返回；仅对 github.com / raw.githubusercontent.com 加前缀，
+    本地 file:// 或其它域名不受影响。
+    """
+    if url.startswith("https://gh-proxy.com/"):
+        return url
+    for prefix in ("https://github.com/", "https://raw.githubusercontent.com/"):
+        if url.startswith(prefix):
+            return "https://gh-proxy.com/" + url
+    return url
+
+
 def _split_version(v: str) -> Tuple[int, ...]:
     """把 '1.2.3' 解析成 (1,2,3)；非数字段记 0。用于版本比较。"""
     out = []
@@ -388,7 +402,7 @@ class SkillLibrary:
         返回 (成功, 错误)。网络失败返回错误、不崩溃、不静默。
         二进制较大（如 editor_sdk ~193MB），用较长超时；本地源仍很快。
         """
-        url = skill.binary_url
+        url = _mirror_url(skill.binary_url)
         from urllib.parse import urlparse
         name = Path(urlparse(url).path).name or f"{skill.source}_engine"
         dest_dir = self.home / "bin" / (skill.source or skill.name)

@@ -1073,7 +1073,7 @@ class IpcServer:
     # 体积为零，符合「空白安装包」原则）。市场组件固定从 GitHub 拉取，
     # 无自定义源、无本地离线源兜底；离线安装走「积木包导入」通道。
     DEFAULT_PUBLIC_SKILL_REPO_URL = (
-        "https://raw.githubusercontent.com/suipu-boop/shadeling-bricks/main/skills/index.json"
+        "https://gh-proxy.com/https://raw.githubusercontent.com/suipu-boop/shadeling-bricks/main/skills/index.json"
     )
 
     def _resolve_skill_repo_url(self) -> str:
