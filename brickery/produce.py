@@ -65,6 +65,29 @@ def _bricks_for_mode(mode: str) -> List[str]:
     raise ProduceError(f"未知出包模式：{mode!r}（可选 full/base）")
 
 
+def _is_builtin_brick(manifest: Path) -> bool:
+    """brick.json 未声明二进制（binary_size 空/0 且无 binary_url）→ 内置积木。
+
+    内置积木随底座分发（builtin_skills 通道），不写入 bricks/ 快照；
+    声明二进制的大引擎/第三方留待选区/市场按需下载。动态计算，不写死 id。
+    """
+    try:
+        raw = json.loads(manifest.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return False
+    return not (raw.get("binary_size") or raw.get("binary_url"))
+
+
+def _brick_to_skill(manifest: Path) -> dict:
+    """brick.json → runtime skill.json（source 强制 builtin，随包只读分发）。"""
+    raw = json.loads(manifest.read_text(encoding="utf-8"))
+    raw["source"] = "builtin"
+    raw.pop("binary_url", None)
+    raw.pop("binary_size", None)
+    raw.pop("binary_sha256", None)
+    return raw
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -102,10 +125,25 @@ def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
         shutil.rmtree(out_dir)
     bricks_dir = out_dir / "bricks"
     bricks_dir.mkdir(parents=True)
+    builtin_skills_dir = out_dir / "builtin_skills"
 
-    # 3) 复制积木快照（自包含积木复制整个目录，含实现文件；其余单文件快照）
+    # 3) 复制积木快照 / 生成内置技能
+    #    内置积木（binary_size 空/0）→ builtin_skills/<name>/（source=builtin，
+    #    随底座分发，运行时 load_builtin_skills 加载，不写用户文件）；
+    #    非内置积木 → bricks/ 快照（自包含复制整个目录，含实现文件；其余单文件快照）。
+    builtin_names: List[str] = []
     for brick_name in order:
         manifest = _find_manifest(vault, brick_name)
+        if _is_builtin_brick(manifest):
+            builtin_names.append(brick_name)
+            dst_dir = builtin_skills_dir / brick_name
+            shutil.copytree(
+                manifest.parent, dst_dir,
+                ignore=shutil.ignore_patterns("brick.json", "__pycache__", "*.pyc"))
+            (dst_dir / "skill.json").write_text(
+                json.dumps(_brick_to_skill(manifest), ensure_ascii=False, indent=2),
+                encoding="utf-8")
+            continue
         brick_files = (plan.files or {}).get(brick_name) or []
         if brick_files:
             src_dir = manifest.parent
@@ -129,6 +167,7 @@ def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
         "mode": mode or "plan",
         "assembly": {
             "order": order,
+            "builtin": builtin_names,
             "resources_total": plan.resources_total if not mode else len(order),
         },
     }
@@ -252,7 +291,14 @@ def _bundle_app(out_dir: Path, meta: ProduceMeta, *, port: int = 18765,
 
     # 复制装配清单与积木快照进 Resources/
     shutil.copy2(out_dir / "agent.json", resources / "agent.json")
-    shutil.copytree(out_dir / "bricks", resources / "bricks")
+    if (out_dir / "bricks").exists():
+        shutil.copytree(out_dir / "bricks", resources / "bricks")
+
+    # 内置技能随底座分发：打包进 brickery-runtime/brickery/builtin_skills/
+    # （load_builtin_skills 打包态查找路径：ipc.py 的 parents[1]）
+    if (out_dir / "builtin_skills").exists():
+        builtin_dst = resources / "brickery-runtime" / "brickery" / "builtin_skills"
+        shutil.copytree(out_dir / "builtin_skills", builtin_dst)
 
     # 自包含积木实现文件落盘进打包 runtime（connectors / bin 等）
     _install_brick_files(resources, files or {})
@@ -423,7 +469,10 @@ def _install_brick_files(resources: Path, files: Dict[str, List[dict]]) -> None:
     runtime_root = resources / "brickery-runtime"
     brick_pkg = runtime_root / "brickery"
     for name, flist in (files or {}).items():
+        # 内置积木实现文件随 builtin_skills 分发（bricks/ 快照不包含内置）
         brick_dir = resources / "bricks" / name
+        if not brick_dir.exists():
+            brick_dir = brick_pkg / "builtin_skills" / name
         for f in flist:
             src = brick_dir / str(f.get("src") or "")
             dest_raw = str(f.get("dest") or "")
