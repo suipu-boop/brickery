@@ -1,0 +1,32 @@
+name: Notify Workbench Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'brickery/**'
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 触发 brickery-workbench 自动发布
+        if: ${{ secrets.RELEASE_PAT != '' }}
+        env:
+          PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer $PAT" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/suipu-boop/brickery-workbench/dispatches" \
+            -d '{"event_type":"release-request"}'
+          echo "已向 brickery-workbench 发送自动发布请求"
+
+      - name: 提示配置 PAT
+        if: ${{ secrets.RELEASE_PAT == '' }}
+        run: |
+          echo "::warning::未配置 RELEASE_PAT，跨仓库自动发布未触发。"
+          echo "请在本仓库 Settings → Secrets and variables → Actions 添加 RELEASE_PAT（PAT 需对 brickery-workbench 仓库有 contents:write 权限）。"
