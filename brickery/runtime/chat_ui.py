@@ -1743,7 +1743,7 @@ function renderTabData() {
       </div>
       <div class="row" style="margin-top:6px">
         <button class="btn sm primary" onclick="saveConfig()">保存目录</button>
-        <button class="btn sm" onclick="runBackupDefault()">一键备份</button>
+        <button class="btn sm" id="btnBackupDefault" onclick="runBackupDefault()">一键备份</button>
         <button class="btn sm" onclick="renderBackupList()">查看备份列表</button>
         <span class="muted">数据目录：${esc(cfg.home || "")}</span>
       </div>
@@ -1891,7 +1891,7 @@ async function renderEngineStatus() {
       lTxt.textContent = "本地模型：未启用";
       lDot.className = "dot";
     }
-  } catch (e) { lTxt.textContent = "引擎状态获取失败"; }
+  } catch (e) { lTxt.textContent = "引擎状态获取失败"; alert("引擎状态获取失败：" + e.message); }
 }
 async function setExecMode() {
   const mode = $("cfgMode").value;
@@ -1906,8 +1906,14 @@ async function openFolderByPath(path) {
   try { await ipc("open_folder", { path }); } catch (e) { alert("打开失败：" + e.message); }
 }
 async function runBackupDefault() {
-  try { const r = await ipc("backup_default", {}); alert("一键备份完成：\\n" + (r.dest || r.detail || "已保存到默认备份目录")); }
-  catch (e) { alert("备份失败：" + e.message); }
+  const btn = $("btnBackupDefault");
+  const old = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "备份中..."; }
+  try {
+    const r = await ipc("backup_default", {});
+    alert("一键备份完成：\\n" + (r.dest || r.detail || "已保存到默认备份目录"));
+  } catch (e) { alert("备份失败：" + e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
 }
 async function renderBackupList() {
   const box = $("backupList"); if (!box) return;
