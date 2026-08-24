@@ -131,19 +131,22 @@ def produce(plan: AssemblyPlan, vault_root: str, meta: ProduceMeta,
     #    内置积木（binary_size 空/0）→ builtin_skills/<name>/（source=builtin，
     #    随底座分发，运行时 load_builtin_skills 加载，不写用户文件）；
     #    非内置积木 → bricks/ 快照（自包含复制整个目录，含实现文件；其余单文件快照）。
+    #    内置积木开箱即用：无论用户是否选择，全部扫描 vault 内置进底座，零选择也能产出。
     builtin_names: List[str] = []
+    for manifest in _vault_builtin_manifests(vault):
+        brick_name = manifest.parent.name
+        builtin_names.append(brick_name)
+        dst_dir = builtin_skills_dir / brick_name
+        shutil.copytree(
+            manifest.parent, dst_dir,
+            ignore=shutil.ignore_patterns("brick.json", "__pycache__", "*.pyc"))
+        (dst_dir / "skill.json").write_text(
+            json.dumps(_brick_to_skill(manifest), ensure_ascii=False, indent=2),
+            encoding="utf-8")
     for brick_name in order:
         manifest = _find_manifest(vault, brick_name)
         if _is_builtin_brick(manifest):
-            builtin_names.append(brick_name)
-            dst_dir = builtin_skills_dir / brick_name
-            shutil.copytree(
-                manifest.parent, dst_dir,
-                ignore=shutil.ignore_patterns("brick.json", "__pycache__", "*.pyc"))
-            (dst_dir / "skill.json").write_text(
-                json.dumps(_brick_to_skill(manifest), ensure_ascii=False, indent=2),
-                encoding="utf-8")
-            continue
+            continue  # 已随底座内置，避免重复
         brick_files = (plan.files or {}).get(brick_name) or []
         if brick_files:
             src_dir = manifest.parent
@@ -199,6 +202,36 @@ def _find_manifest(vault: Path, brick_name: str) -> Optional[Path]:
             pass
     m = vault / "bricks" / brick_name / "brick.json"
     return m if m.exists() else None
+
+
+def _vault_builtin_manifests(vault: Path):
+    """扫描 vault 全部 brick.json，产出内置积木的 manifest。
+
+    内置积木开箱即用：无论用户是否选择，全部随底座分发（builtin_skills 通道）。
+    以 index.json 声明的 path 为准，缺失时兜底扫描 bricks/*/brick.json，去重。
+    """
+    seen: set = set()
+    index_path = vault / "index.json"
+    if index_path.exists():
+        try:
+            raw = json.loads(index_path.read_text(encoding="utf-8"))
+            for entry in raw.get("bricks") or []:
+                name = entry.get("name")
+                if not name or name in seen:
+                    continue
+                m = _find_manifest(vault, name)
+                if m is not None and _is_builtin_brick(m):
+                    seen.add(name)
+                    yield m
+        except (json.JSONDecodeError, OSError):
+            pass
+    for m in sorted((vault / "bricks").glob("*/brick.json")):
+        name = m.parent.name
+        if name in seen:
+            continue
+        if _is_builtin_brick(m):
+            seen.add(name)
+            yield m
 
 
 def _write_run_script(out_dir: Path, meta: ProduceMeta) -> None:

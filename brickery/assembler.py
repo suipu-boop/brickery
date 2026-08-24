@@ -96,9 +96,10 @@ class Assembler:
 
     # ---- 入口：组装 ----
     def assemble(self, selected: List[str]) -> AssemblyPlan:
-        """把 selected 及其传递依赖展开成拓扑序方案，校验通过后返回。"""
-        if not selected:
-            raise AssemblyError("未选择任何积木")
+        """把 selected 及其传递依赖展开成拓扑序方案，校验通过后返回。
+
+        允许空 selected（纯底座方案）：内置积木开箱即用、不占组装，零选择也能产出。
+        """
         selected = self._dedupe(selected)
         order = self._resolve(selected)
         self._check_conflicts(order)
