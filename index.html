@@ -254,14 +254,14 @@
 
 <div class="toast" id="toast"></div>
 <footer class="container footer">
-  数据源：<code>suipu-boop/shadeling-bricks</code>（GitHub 市场源） · 打包格式：<code>shadeling-brick/v1</code>
+  数据源：<code>suipu-boop/brick-vault</code>（GitHub 市场源） · 打包格式：<code>shadeling-brick/v1</code>
 </footer>
 
 <script>
 "use strict";
-const REPO_SKILLS = "suipu-boop/shadeling-bricks";
-const JSDELIVR_BASE = "https://cdn.jsdelivr.net/gh/" + REPO_SKILLS + "@main/skills/";
-const RAW_BASE = "https://raw.githubusercontent.com/" + REPO_SKILLS + "/main/skills/";
+const REPO_SKILLS = "suipu-boop/brick-vault";
+const JSDELIVR_BASE = "https://cdn.jsdelivr.net/gh/" + REPO_SKILLS + "@main/";
+const RAW_BASE = "https://raw.githubusercontent.com/" + REPO_SKILLS + "/main/";
 const MIRRORS = [
   "https://gh-proxy.com/",
   "https://ghfast.top/",
@@ -348,19 +348,19 @@ async function loadMarket() {
     const res = await fetchFirst(marketUrls("index.json"));
     if (!res.ok) throw new Error("HTTP " + res.status);
     MARKET = await res.json();
-    const entries = MARKET.skills || [];
-    // 单积木对应 index 条目；并行拉取完整 skill JSON（含 content）。
+    const entries = MARKET.bricks || [];
+    // 单积木对应 index 条目；并行拉取完整 brick.json（含 content）。
     // 市场只展示按需大积木/第三方：内置小积木（binary_size 空/0 且无 binary_url）
     // 已随底座开箱即用，不进市场（对齐内核 produce._is_builtin_brick 判定）。
     // detail 拉取失败的条目不误杀（保留展示）。
     const list = (await Promise.all(entries.map(async (item) => {
       let detail = null;
       try {
-        const r = await fetchFirst(marketUrls(item.download_url));
+        const r = await fetchFirst(marketUrls(item.path + "brick.json"));
         if (r.ok) detail = await r.json();
       } catch (e) { /* 单个失败不阻塞整体 */ }
       return {
-        id: item.id,
+        id: (detail && detail.id) || item.name || item.path,
         name: (detail && detail.name) || item.name,
         version: (detail && detail.version) || item.version || "",
         author: (detail && detail.author) || item.author || "",
