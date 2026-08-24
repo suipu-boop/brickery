@@ -965,6 +965,99 @@ class IpcServer:
             return {"core": {attr: get_core(attr)}}
         return {"core": get_core() or {}}
 
+    def _h_agent_get(self, params):
+        """只读返回 agent 定义（home/agent.json）。
+
+        安全：agent.json 仅含 agent 身份与积木装配清单，无密钥
+        （api_key 在 config.json，config_get 已掩码）。不开放写：
+        agent.json 兼任"已初始化"标记，写入会破坏初始化语义。
+        """
+        home = self.config.home
+        p = home / "agent.json"
+        if not p.exists():
+            return {"agent": None, "error": "agent.json 不存在（未初始化）"}
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as e:
+            return {"agent": None, "error": f"agent.json 解析失败: {e}"}
+        return {"agent": data}
+
+    def _h_core_smart_get(self, params):
+        """读固定核智能槽全量（含置信度/命中数，读取时实时衰减）。"""
+        from brickery.memory.fixed_core import get_smart_slots
+        return {"items": get_smart_slots()}
+
+    def _h_core_smart_delete(self, params):
+        """删除单条固定核智能槽（用户纠错入口）。"""
+        from brickery.memory.fixed_core import delete_smart_slot
+        label = params.get("label", "").strip()
+        if not label:
+            raise ValueError("label 必填")
+        return {"ok": bool(delete_smart_slot(label)), "label": label}
+
+    def _h_core_candidates(self, params):
+        """列出固定核候选（pending_candidates 中 status='pending'）。"""
+        from brickery.memory.db import memory_conn
+        with memory_conn() as c:
+            c.execute(
+                "CREATE TABLE IF NOT EXISTS pending_candidates("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "label TEXT NOT NULL, value TEXT NOT NULL,"
+                "confidence REAL DEFAULT 0.5,"
+                "created_at TEXT NOT NULL,"
+                "status TEXT DEFAULT 'pending')"
+            )
+            rows = c.execute(
+                "SELECT id, label, value, confidence, created_at FROM pending_candidates "
+                "WHERE status='pending' ORDER BY id ASC"
+            ).fetchall()
+        return {"items": [
+            {"id": r["id"], "label": r["label"], "value": r["value"],
+             "confidence": r["confidence"], "created_at": r["created_at"]}
+            for r in rows]}
+
+    def _h_core_candidate_resolve(self, params):
+        """确认候选 → 写入固定核智能槽，候选标记 resolved。"""
+        from brickery.memory.db import memory_conn
+        from brickery.memory.fixed_core import set_smart_slot
+        cid = int(params.get("id", 0))
+        with memory_conn() as c:
+            c.execute(
+                "CREATE TABLE IF NOT EXISTS pending_candidates("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "label TEXT NOT NULL, value TEXT NOT NULL,"
+                "confidence REAL DEFAULT 0.5,"
+                "created_at TEXT NOT NULL,"
+                "status TEXT DEFAULT 'pending')"
+            )
+            row = c.execute(
+                "SELECT label, value, confidence FROM pending_candidates WHERE id=? AND status='pending'",
+                (cid,),
+            ).fetchone()
+            if not row:
+                return {"ok": False, "error": "候选不存在或已处理"}
+            ok = set_smart_slot(row["label"], row["value"],
+                                confidence=row["confidence"] or 0.9)
+            if ok:
+                c.execute("UPDATE pending_candidates SET status='resolved' WHERE id=?", (cid,))
+        return {"ok": ok, "id": cid}
+
+    def _h_core_candidate_dismiss(self, params):
+        """否决候选 → 标记 dismissed，不入智能槽。"""
+        from brickery.memory.db import memory_conn
+        cid = int(params.get("id", 0))
+        with memory_conn() as c:
+            c.execute(
+                "CREATE TABLE IF NOT EXISTS pending_candidates("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "label TEXT NOT NULL, value TEXT NOT NULL,"
+                "confidence REAL DEFAULT 0.5,"
+                "created_at TEXT NOT NULL,"
+                "status TEXT DEFAULT 'pending')"
+            )
+            c.execute("UPDATE pending_candidates SET status='dismissed' WHERE id=?", (cid,))
+        return {"ok": True, "id": cid}
+
     def _h_suggestions(self, params):
         return {"items": self.memory.suggest(
             params.get("context", ""),

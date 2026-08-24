@@ -47,6 +47,8 @@ IPC_ALLOWED_METHODS = {
     "chat", "chat_cancel",
     "session_list", "session_new", "session_get", "session_rename",
     "session_delete", "session_set_profile",
+    # 工具确认（模型请求 MEDIUM/HIGH 风险工具时前端轮询裁决）
+    "confirm_next", "confirm_resolve",
     # 技能库 / 工具
     "skill_list", "skill_toggle", "skill_trigger",
     "skill_library_list", "skill_library_install", "skill_library_uninstall",
@@ -58,7 +60,11 @@ IPC_ALLOWED_METHODS = {
     "vault_snapshot", "vault_scan", "vault_enhance", "vault_sync_skills",
     # 记忆
     "memory_search", "memory_export", "recall", "portrait", "portrait_update",
-    "core_get", "core_set", "suggestions", "suggestion_feedback",
+    "core_get", "core_set", "core_smart_get", "core_smart_delete",
+    "core_candidates", "core_candidate_resolve", "core_candidate_dismiss",
+    "suggestions", "suggestion_feedback",
+    # agent 配置只读
+    "agent_get",
     # 设置 / 模型
     "config_get", "config_set", "models_list", "model_recommend",
     "model_download_start", "model_download_status", "model_download_pause",
@@ -823,6 +829,28 @@ function renderAttachments() {
 }
 function removeAttachment(i) { attachments.splice(i, 1); renderAttachments(); }
 
+/* 工具确认轮询：模型请求 MEDIUM/HIGH 风险工具时，后端阻塞等裁决，
+   前端必须轮询 confirm_next 取待确认项并弹窗，否则 chat 会卡到超时。 */
+let confirmPolling = false;
+async function confirmPoller() {
+  while (confirmPolling) {
+    let item = null;
+    try {
+      const r = await ipc("confirm_next", { wait: 25 });
+      item = r && r.confirmation;
+    } catch (e) { break; }
+    if (!item) continue;
+    let argsTxt = "";
+    try {
+      const a = item.args || {};
+      const keys = Object.keys(a);
+      if (keys.length) argsTxt = "\\n参数：" + JSON.stringify(a).slice(0, 400);
+    } catch (e) {}
+    const ok = confirm("允许执行工具「" + (item.tool_name || "?") + "」？" + argsTxt + "\\n\\n确定=允许执行，取消=拒绝");
+    try { await ipc("confirm_resolve", { id: item.id, decision: ok }); } catch (e) {}
+  }
+}
+
 async function sendMsg() {
   const input = $("input");
   const text = input.value.trim();
@@ -833,18 +861,23 @@ async function sendMsg() {
   messages.push({ role: "user", text: full });
   renderMessages();
   isThinking = true;
+  confirmPolling = true; confirmPoller();
   const send = $("send"), stop = $("stopBtn");
   send.disabled = true; send.style.display = "none"; stop.style.display = "inline-block";
+  let reply = "";
+  const aiIdx = messages.length;
+  messages.push({ role: "assistant", text: "" });
+  renderMessages();
   const box = $("messages");
   const typing = document.createElement("div");
   typing.className = "typing"; typing.textContent = "思考中...";
   box.appendChild(typing); box.scrollTop = box.scrollHeight;
-  let reply = "";
-  const aiIdx = messages.length;
-  messages.push({ role: "assistant", text: "" });
   const updateBubble = () => {
     const el = document.querySelector('.msg[data-i="' + aiIdx + '"] .bubble');
-    if (el) el.textContent = reply;
+    if (!el) return;
+    const cp = el.querySelector(".copy");
+    el.textContent = reply;
+    if (cp) el.appendChild(cp);
     box.scrollTop = box.scrollHeight;
   };
   try {
@@ -863,6 +896,7 @@ async function sendMsg() {
     messages[aiIdx] = { role: "assistant", text: "网络错误：" + e.message };
     typing.remove(); updateBubble();
   } finally {
+    confirmPolling = false;
     isThinking = false;
     send.disabled = false; send.style.display = ""; stop.style.display = "none";
     input.focus();
@@ -1405,6 +1439,7 @@ async function renderMemory() {
     <div class="tabs">
       <div class="tab ${memoryTab === "recall" ? "active" : ""}" onclick="setMemoryTab('recall')">对话影</div>
       <div class="tab ${memoryTab === "portrait" ? "active" : ""}" onclick="setMemoryTab('portrait')">用户画像</div>
+      <div class="tab ${memoryTab === "core" ? "active" : ""}" onclick="setMemoryTab('core')">固定核</div>
       <div class="tab ${memoryTab === "suggestions" ? "active" : ""}" onclick="setMemoryTab('suggestions')">主动建议</div>
       <div class="tab ${memoryTab === "files" ? "active" : ""}" onclick="setMemoryTab('files')">文件检索</div>
     </div>
@@ -1424,6 +1459,16 @@ async function renderMemoryTab() {
   } else if (memoryTab === "portrait") {
     body.innerHTML = '<div class="card"><h3>用户画像</h3><div id="portraitOut"></div></div>';
     loadPortrait();
+  } else if (memoryTab === "core") {
+    body.innerHTML = `
+      <div class="card">
+        <h3>固定核</h3>
+        <div class="muted" style="margin-bottom:8px">每次对话都会注入给 agent 的长期记忆。手动槽可编辑；智能槽由归纳自动生成，可删除纠错。</div>
+        <div id="coreCand" style="margin-bottom:10px"></div>
+        <div id="coreManual"></div>
+        <div id="coreSmart"></div>
+      </div>`;
+    loadCore();
   } else if (memoryTab === "suggestions") {
     body.innerHTML = `
       <div class="card">
@@ -1488,6 +1533,65 @@ async function doFileSearch() {
       <div class="list-item"><div><div class="title">${esc(it.title || it.doc_id || "")}</div><div class="sub">${esc(it.path || "")}</div></div></div>`).join("") : '<div class="empty">无结果</div>';
   } catch (e) { out.innerHTML = '<div class="err-text">' + esc(e.message) + '</div>'; }
 }
+async function loadCore() {
+  const candEl = $("coreCand"), manEl = $("coreManual"), smEl = $("coreSmart");
+  if (!manEl) return;
+  try {
+    const [c, s, cand] = await Promise.all([
+      ipc("core_get", {}), ipc("core_smart_get", {}), ipc("core_candidates", {})
+    ]);
+    const manual = c.core || {};
+    const entries = Object.entries(manual);
+    manEl.innerHTML = '<h4>手动槽</h4>' + (entries.length ? entries.map(([k, v]) => `
+      <div class="list-item">
+        <div><div class="title">${esc(k)}</div><div class="sub">${esc(v)}</div></div>
+        <button class="btn sm" onclick="editCore('${esc(k)}')">编辑</button>
+      </div>`).join("") : '<div class="empty">暂无手动槽，点击下方按钮添加</div>') + `
+      <div class="row" style="margin-top:6px"><button class="btn sm" onclick="addCore()">添加</button></div>`;
+    const sm = s.items || [];
+    smEl.innerHTML = '<h4>智能槽（自动归纳）</h4>' + (sm.length ? sm.map(it => `
+      <div class="list-item">
+        <div><div class="title">${esc(it.label)}</div><div class="sub">${esc(it.value)} · 置信 ${(it.confidence || 0).toFixed(2)} · 命中 ${it.hit_count || 0}</div></div>
+        <button class="btn sm danger" onclick="delSmart('${esc(it.label)}')">删除</button>
+      </div>`).join("") : '<div class="empty">暂无智能槽</div>');
+    const pend = cand.items || [];
+    candEl.innerHTML = pend.length ? '<h4>待确认候选</h4>' + pend.map(it => `
+      <div class="list-item">
+        <div><div class="title">${esc(it.label)}</div><div class="sub">${esc(it.value)} · 置信 ${(it.confidence || 0).toFixed(2)}</div></div>
+        <div class="row" style="gap:6px;flex-wrap:nowrap">
+          <button class="btn sm primary" onclick="resolveCand(${it.id})">写入固定核</button>
+          <button class="btn sm" onclick="dismissCand(${it.id})">忽略</button>
+        </div>
+      </div>`).join("") : '';
+  } catch (e) { manEl.innerHTML = '<div class="err-text">' + esc(e.message) + '</div>'; }
+}
+async function editCore(attr) {
+  const val = prompt("编辑「" + attr + "」的值（留空删除）：");
+  if (val == null) return;
+  try { await ipc("core_set", { items: [{ attribute: attr, value: val }] }); loadCore(); }
+  catch (e) { alert("更新失败：" + e.message); }
+}
+async function addCore() {
+  const attr = prompt("新槽名称（如：我的目标）：");
+  if (!attr) return;
+  const val = prompt("内容：");
+  if (val == null) return;
+  try { await ipc("core_set", { items: [{ attribute: attr, value: val }] }); loadCore(); }
+  catch (e) { alert("添加失败：" + e.message); }
+}
+async function delSmart(label) {
+  if (!confirm("删除智能槽「" + label + "」？")) return;
+  try { await ipc("core_smart_delete", { label: label }); loadCore(); }
+  catch (e) { alert("删除失败：" + e.message); }
+}
+async function resolveCand(id) {
+  try { await ipc("core_candidate_resolve", { id: id }); loadCore(); }
+  catch (e) { alert("写入失败：" + e.message); }
+}
+async function dismissCand(id) {
+  try { await ipc("core_candidate_dismiss", { id: id }); loadCore(); }
+  catch (e) { alert("操作失败：" + e.message); }
+}
 
 /* ================= 设置 ================= */
 let cfgData = null;   // config_get 缓存：tab 切换后未渲染字段仍可取旧值
@@ -1508,6 +1612,7 @@ async function renderSettings() {
           <button data-tab="model" onclick="showSettingsTab('model')"><span class="nav-ico">&#9633;</span>模型</button>
           <button data-tab="memory" onclick="showSettingsTab('memory')"><span class="nav-ico">&#9670;</span>记忆</button>
           <button data-tab="data" onclick="showSettingsTab('data')"><span class="nav-ico">&#9675;</span>数据与备份</button>
+          <button data-tab="agent" onclick="showSettingsTab('agent')"><span class="nav-ico">&#9650;</span>Agent 配置</button>
           <button data-tab="about" onclick="showSettingsTab('about')"><span class="nav-ico">&#8505;</span>关于</button>
         </div>
         <div class="settings-body" id="settingsBody"><div class="empty">加载中...</div></div>
@@ -1553,6 +1658,7 @@ function showSettingsTab(k) {
   else if (k === "model") renderTabModel();
   else if (k === "memory") renderTabMemory();
   else if (k === "data") renderTabData();
+  else if (k === "agent") renderTabAgent();
   else if (k === "about") renderTabAbout();
 }
 
@@ -1749,6 +1855,19 @@ function renderTabData() {
       </div>
       <div id="backupList" style="margin-top:10px"></div>
     </div>`;
+}
+
+/* ---- Agent 配置（只读） ---- */
+async function renderTabAgent() {
+  $("settingsBody").innerHTML = '<div class="section-card"><h3>Agent 配置</h3><div id="agentCfgOut" class="muted">加载中...</div></div>';
+  try {
+    const d = await ipc("agent_get", {});
+    const out = $("agentCfgOut");
+    if (!d || d.error) { out.innerHTML = '<div class="err-text">' + esc((d && d.error) || "读取失败") + '</div>'; return; }
+    out.innerHTML = '<pre style="background:#0d1117;border:1px solid var(--line);color:var(--ink);padding:12px;border-radius:6px;font-size:11px;line-height:1.6;overflow:auto;max-height:60vh;white-space:pre-wrap">' + esc(JSON.stringify(d.agent, null, 2)) + '</pre>';
+  } catch (e) {
+    const out = $("agentCfgOut"); if (out) out.innerHTML = '<div class="err-text">' + esc(e.message) + '</div>';
+  }
 }
 
 /* ---- 关于 ---- */
