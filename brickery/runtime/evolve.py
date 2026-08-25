@@ -69,6 +69,17 @@ def _db(home: Path) -> sqlite3.Connection:
         "status TEXT DEFAULT 'pending',"
         "created_at TEXT NOT NULL)"
     )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS evolve_refine("
+        "brick_name TEXT PRIMARY KEY,"
+        "usage_count INTEGER DEFAULT 0,"
+        "success_count INTEGER DEFAULT 0,"
+        "consecutive_success INTEGER DEFAULT 0,"
+        "consecutive_fail INTEGER DEFAULT 0,"
+        "confidence REAL DEFAULT 0.5,"
+        "status TEXT DEFAULT 'active',"
+        "last_result_at TEXT NOT NULL)"
+    )
     conn.commit()
     return conn
 
@@ -305,11 +316,15 @@ def _trace_ids(home: Path, task_key: str) -> List[int]:
 def observe_and_maybe_distill(home: Path, session_id: str, tool_names: List[str],
                               input_text: str, output_text: str, success: bool,
                               shadow: Any = None) -> Optional[dict]:
-    """loop 挂钩入口：记录轨迹；达标则蒸馏。出错静默。"""
+    """loop 挂钩入口：记录轨迹；达标则蒸馏；命中 evolve 积木则精炼。出错静默。"""
     try:
         key = observe(home, session_id, tool_names, input_text, output_text, success)
         if key is None:
             return None
+        try:
+            refine_from_trace(home, tool_names, success)
+        except Exception:
+            pass  # 精炼失败不影响蒸馏主链路
         return distill(home, key, shadow=shadow)
     except Exception:
         return None
@@ -432,3 +447,162 @@ def reject_candidate(home: Path, candidate_id: int) -> Tuple[bool, Optional[str]
                 (payload["task_key"],),
             )
     return True, None
+
+
+# ---------- 批次 2：refine 反馈精炼 ----------
+#
+# 对应 specs/agent-self-evolve.md 第 10 节：
+# - 强化：成功 +0.1；剪枝：失败 -0.15（惩罚更重，防劣质积木虚胖）
+# - conf < 0.4 降级 degraded；conf < 0.2 或连 5 败 retired（改名 .retired-<name>，不删）
+# - degraded 可自动恢复：连续 3 次成功回 active（2026-08-25 决策）
+# - retired 必须人工确认恢复（自动链路不复活）
+# - 只作用于 source 以 evolve: 开头的已激活积木，内置 / 市场不参与
+# - 零外连、出错静默、不阻塞主循环
+
+_REFINE_REWARD = 0.10       # 成功 +0.1
+_REFINE_PENALTY = 0.15      # 失败 -0.15
+_DEGRADE_CONF = 0.40        # conf < 0.4 → degraded
+_RETIRE_CONF = 0.20         # conf < 0.2 → retired
+_RETIRE_FAILS = 5           # 连续失败 >= 5 → retired
+_RECOVER_SUCCEEDS = 3       # degraded 连续 3 次成功 → active
+_RETIRED_PREFIX = ".retired-"
+
+
+def _evolve_source(manifest: dict) -> bool:
+    return str(manifest.get("source", "")).startswith(EVOLVE_LABEL_PREFIX)
+
+
+def _active_evolve_bricks(home: Path) -> Dict[str, Path]:
+    """返回 {brick_name: bricks/<name> 目录}，仅含 source=evolve: 且未退役的激活积木。"""
+    out: Dict[str, Path] = {}
+    bricks_root = home / "bricks"
+    if not bricks_root.is_dir():
+        return out
+    for d in bricks_root.iterdir():
+        if not d.is_dir() or d.name.startswith("."):
+            continue
+        mf = d / "brick.json"
+        if not mf.is_file():
+            continue
+        try:
+            manifest = json.loads(mf.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        name = str(manifest.get("name", "")).strip()
+        if name and _evolve_source(manifest):
+            out[name] = d
+    return out
+
+
+def _upsert_refine(conn: sqlite3.Connection, brick_name: str, ts: str) -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO evolve_refine("
+        "brick_name, usage_count, success_count, consecutive_success,"
+        " consecutive_fail, confidence, status, last_result_at)"
+        " VALUES(?,0,0,0,0,0.5,'active',?)",
+        (brick_name, ts),
+    )
+
+
+def _retire_brick(home: Path, brick_name: str, bricks: Dict[str, Path]) -> None:
+    """退役：目录改名 .retired-<name>，数据保留（便于人工审查 / 恢复）。"""
+    src = bricks.get(brick_name)
+    if src is None or not src.exists():
+        return
+    dst = src.with_name(_RETIRED_PREFIX + src.name)
+    try:
+        src.rename(dst)
+    except OSError:
+        pass
+
+
+def refine_from_trace(home: Path, tool_names: List[str], success: bool,
+                      now: Optional[str] = None) -> Optional[List[dict]]:
+    """对本次回合中被调用的已激活 evolve 积木做精炼。
+
+    tools 命中积木名则视为"被使用"，按成功 / 失败更新计数与置信度，
+    并执行状态迁移（active / degraded / retired）。返回发生变化的积木列表。
+    """
+    if not tool_names:
+        return None
+    bricks = _active_evolve_bricks(home)
+    if not bricks:
+        return None
+    used = [name for name in tool_names if name in bricks]
+    if not used:
+        return None
+    ts = now or time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+    changed: List[dict] = []
+    with _db(home) as conn:
+        for name in used:
+            _upsert_refine(conn, name, ts)
+            row = conn.execute(
+                "SELECT usage_count, success_count, consecutive_success,"
+                " consecutive_fail, confidence, status FROM evolve_refine"
+                " WHERE brick_name=?", (name,),
+            ).fetchone()
+            if row is None:
+                continue
+            status = row["status"]
+            if status == "retired":
+                continue  # 退役不自动参与（人工恢复除外）
+            usage = int(row["usage_count"]) + 1
+            succ = int(row["success_count"]) + (1 if success else 0)
+            conf = float(row["confidence"])
+            if success:
+                cs = int(row["consecutive_success"]) + 1
+                cf = 0
+                conf = round(min(1.0, conf + _REFINE_REWARD), 3)
+                new_status = status
+                if status == "degraded" and cs >= _RECOVER_SUCCEEDS:
+                    new_status = "active"
+                elif status == "active":
+                    new_status = "active"
+            else:
+                cs = 0
+                cf = int(row["consecutive_fail"]) + 1
+                conf = round(max(0.0, conf - _REFINE_PENALTY), 3)
+                if conf < _RETIRE_CONF or cf >= _RETIRE_FAILS:
+                    new_status = "retired"
+                elif conf < _DEGRADE_CONF:
+                    new_status = "degraded"
+                else:
+                    new_status = status
+            conn.execute(
+                "UPDATE evolve_refine SET usage_count=?, success_count=?,"
+                " consecutive_success=?, consecutive_fail=?, confidence=?,"
+                " status=?, last_result_at=? WHERE brick_name=?",
+                (usage, succ, cs, cf, round(conf, 3), new_status, ts, name),
+            )
+            if new_status == "retired":
+                _retire_brick(home, name, bricks)
+            changed.append({
+                "brick_name": name,
+                "success": success,
+                "confidence": round(conf, 3),
+                "status": new_status,
+            })
+    return changed or None
+
+
+def refine_stats(home: Path) -> List[dict]:
+    """只读统计（IPC evolve_refine_stats 用）：全部 evolve 积木的使用与状态。"""
+    with _db(home) as conn:
+        rows = conn.execute(
+            "SELECT brick_name, usage_count, success_count, consecutive_success,"
+            " consecutive_fail, confidence, status, last_result_at"
+            " FROM evolve_refine ORDER BY usage_count DESC, brick_name ASC",
+        ).fetchall()
+    out = []
+    for r in rows:
+        out.append({
+            "brick_name": r["brick_name"],
+            "usage_count": int(r["usage_count"]),
+            "success_count": int(r["success_count"]),
+            "consecutive_success": int(r["consecutive_success"]),
+            "consecutive_fail": int(r["consecutive_fail"]),
+            "confidence": float(r["confidence"]),
+            "status": r["status"],
+            "last_result_at": r["last_result_at"],
+        })
+    return out

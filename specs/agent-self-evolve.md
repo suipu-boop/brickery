@@ -136,14 +136,81 @@ observe → 判定 → distill → verify → 确认 → reuse → refine →（
 - **运行中副本已同步**：/Applications/shadelingmac0.0.1.app/Contents/Resources/brickery-runtime/ 四个文件与仓库 diff 一致；chat_ui（18767）与底座 ipc（18765）均已重启加载新代码
 - **实测验证**：`POST /api/ipc {"method":"evolve_candidates"}` 返回 `{"ok": true, "data": {"items": []}}`
 - **重要事实**：evolve 数据落 `home/memory.db`（pending_candidates 表）与 `home/evolve.db`（evolve_traces 表）；home = `~/Library/Application Support/shadelingmac0.0.1`。历史代码曾误用 `paths.memory_db`，已改为 evolve.py 内部 `_memory_db(home)` 直接定位 `home/memory.db`（paths.py 只提供 `get_memory_db()` 且不带 home 参数，勿再回退）
-- **当前限制**：chat_ui 前端无 evolve 候选展示 UI，候选确认仅能走 IPC；如需界面入口需另加前端面板（改前先落盘方案）
+- **当前限制**：~~chat_ui 前端无 evolve 候选展示 UI~~（2026-08-25 已消除：记忆页新增"自进化"tab，候选确认 + refine 统计均可界面操作）
 
-### 批次 2（待办）：refine 反馈精炼
+### 批次 2（已完成）：refine 反馈精炼
 
-- 成功强化 / 失败剪枝：confirm 后按实际复用效果更新 confidence；候选激活后效果差应支持降级/移除
-- 待批次 2 落盘设计后再动代码
+- **实现**（2026-08-25，对应第 10 节设计）：
+  - `brickery/runtime/evolve.py`：新增 `evolve_refine` 表（brick_name 主键 + usage/success/连成/连败/confidence/status）；`refine_from_trace`（成功 +0.1 / 失败 -0.15，conf<0.4 降级 degraded，conf<0.2 或连 5 败退役改名 `.retired-<name>` 不删数据，degraded 连续 3 成功自动恢复 active，retired 不自动复活）；`refine_stats` 只读统计；`observe_and_maybe_distill` 内嵌挂钩（静默保护）
+  - `brickery/runtime/ipc.py`：新增 `_h_evolve_refine_stats`（只读）
+  - `brickery/runtime/chat_ui.py`：白名单放行 `evolve_refine_stats`；记忆页新增"自进化"tab：待确认候选（确认激活/拒绝）+ 已激活积木统计
+  - `brickery/runtime/tests/test_evolve.py`：批次 2 新增 7 例（强化/降级恢复/双路径退役/退役不更新/非 evolve 不参与/统计形状）；runtime 全量 235 passed
+- **已决策项**（见 10.7）：惩罚 0.15 > 奖励 0.1；degraded 可自动恢复、retired 人工确认；批次 1+2 合并加"自进化"前端面板
+- **待办**：运行中副本同步 + 重启生效 + IPC 实测（见批次 1 同款流程）
 
 ### 关联规则（已拍板）
 
 - 快速迭代通道：`specs/agent-test-feedback-loop.md`（状态已确立）——先改运行中副本、重启即测、必须同步仓库
 - 发布流程：`specs/release-process.md`（v1）——PR 合并涉及 runtime 等范围须走发布闭环；本次因判定为生成 agent 侧能力，未重建工坊产物
+
+---
+
+## 10. 批次 2 设计：refine 反馈精炼（2026-08-25 落盘，已按设计实现）
+
+> 状态：已实现（代码 + 单测 + 前端面板），待运行中副本同步与实机验证。
+
+### 10.1 目标
+
+批次 1 打通"候选产生 → 确认激活"。批次 2 打通激活后的**效果闭环**：让已激活的自进化积木随真实使用反馈自我强化/剪枝，避免"激活即永久"。
+
+### 10.2 信号来源（复用，不新增埋点）
+
+- 复用现有 `observe` 回合信号：每次回合记录 tools（含已激活 evolve 积木名）+ success 标志
+- evolve 积木被命中调用时，其名称出现在回合 tools 中 → 该回合 success 即为该积木的效果信号
+- 无需在技能执行路径新增埋点，纯数据层聚合
+
+### 10.3 数据模型（evolve.db 新增 refine 统计，不落 manifest）
+
+| 字段 | 说明 |
+|---|---|
+| brick_name | 已激活 evolve 积木名（主键） |
+| usage_count | 被调用次数（回合 tools 含该名） |
+| success_count | 其中 success=1 的次数 |
+| confidence | 0.0-1.0，初始 0.5，激活时按批次 1 规则 |
+| status | active / degraded / retired |
+| last_result_at | 最近一次效果时间 |
+
+> 不写 manifest：refine 是运行时统计，manifest 保持稳定（name/trigger/content 不变）。
+
+### 10.4 精炼算法（每回合 observe 后异步执行，与蒸馏同线程池）
+
+**强化（success）**：
+- `confidence = min(1.0, confidence + 0.1)`；success_count+1
+- 连续 3 次成功且 confidence ≥ 0.7 → status 保持 active，无需额外动作（已激活）
+
+**剪枝（fail）**：
+- `confidence = max(0.0, confidence - 0.15)`（失败惩罚权重高于成功奖励，防劣质积木虚胖）
+- confidence < 0.4 → status = degraded：不再作为默认候选（SkillRegistry.match 命中后降权，后续会话不再优先注入该积木）
+- confidence < 0.2 或连续 5 次失败 → status = retired：从运行副本中移出（bricks 目录改名 `.retired-<name>`，不删数据，可追溯）
+
+**安全闸门**：
+- 降级/退休自动执行（可逆：改名保留数据），**不删除任何文件**
+- 退休即停止注入，恢复需用户手动确认（保留 `.retired` 目录即可恢复）
+- refine 只作用于 `source` 以 `evolve:` 开头的积木，内置/市场积木不参与
+
+### 10.5 对外接口
+
+- IPC 新增 `evolve_refine_stats`：返回各 evolve 积木的 usage/success/confidence/status（只读）
+- 现有 `evolve_candidates` 不变；refine 状态在 chat_ui 前端（若加面板）一并展示
+
+### 10.6 验证方案
+
+- 单测：构造 3 成功 / 2 成功+2 失败 / 连续 5 失败 三组轨迹，断言 confidence 升降与 status 迁移
+- 全量回归：runtime/tests 228+ 用例不回归
+- 实机：批次 1 已激活候选后，正常使用若干回合，`evolve_refine_stats` 可见计数变化
+
+### 10.7 待确认问题（2026-08-25 已决策）
+
+1. ~~惩罚权重 0.15 vs 奖励 0.1 是否合理？~~ → **已定：失败 -0.15 / 成功 +0.1**，惩罚更重防劣质积木虚胖
+2. ~~retired 后是否允许自动恢复？~~ → **已定：degraded 可自动恢复（连续 3 次成功回 active）；retired 必须人工确认**，保留自动进化闭环同时守住安全底线
+3. ~~前端是否需要 refine 统计展示面板？~~ → **已定：批次 1+2 合并加"自进化"面板**：候选列表（确认/拒绝）+ refine 统计（usage/success/confidence/status）

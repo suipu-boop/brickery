@@ -1076,6 +1076,11 @@ class IpcServer:
         ok, msg = reject_candidate(self.config.home, int(params.get("id", 0)))
         return {"ok": ok, "error": None if ok else msg, "id": params.get("id", 0)}
 
+    def _h_evolve_refine_stats(self, params):
+        """批次 2：只读返回已激活 evolve 积木的使用 / 置信度 / 状态统计。"""
+        from .evolve import refine_stats
+        return {"items": refine_stats(self.config.home)}
+
     def _h_suggestions(self, params):
         return {"items": self.memory.suggest(
             params.get("context", ""),

@@ -62,7 +62,7 @@ IPC_ALLOWED_METHODS = {
     "memory_search", "memory_export", "recall", "portrait", "portrait_update",
     "core_get", "core_set", "core_smart_get", "core_smart_delete",
     "core_candidates", "core_candidate_resolve", "core_candidate_dismiss",
-    "evolve_candidates", "evolve_confirm", "evolve_reject",
+    "evolve_candidates", "evolve_confirm", "evolve_reject", "evolve_refine_stats",
     "suggestions", "suggestion_feedback",
     # agent 配置只读
     "agent_get",
@@ -1441,6 +1441,7 @@ async function renderMemory() {
       <div class="tab ${memoryTab === "recall" ? "active" : ""}" onclick="setMemoryTab('recall')">对话影</div>
       <div class="tab ${memoryTab === "portrait" ? "active" : ""}" onclick="setMemoryTab('portrait')">用户画像</div>
       <div class="tab ${memoryTab === "core" ? "active" : ""}" onclick="setMemoryTab('core')">固定核</div>
+      <div class="tab ${memoryTab === "evolve" ? "active" : ""}" onclick="setMemoryTab('evolve')">自进化</div>
       <div class="tab ${memoryTab === "suggestions" ? "active" : ""}" onclick="setMemoryTab('suggestions')">主动建议</div>
       <div class="tab ${memoryTab === "files" ? "active" : ""}" onclick="setMemoryTab('files')">文件检索</div>
     </div>
@@ -1470,6 +1471,17 @@ async function renderMemoryTab() {
         <div id="coreSmart"></div>
       </div>`;
     loadCore();
+  } else if (memoryTab === "evolve") {
+    body.innerHTML = `
+      <div class="card">
+        <h3>自进化</h3>
+        <div class="muted" style="margin-bottom:8px">候选积木由成功任务轨迹自动蒸馏，确认后激活；激活积木随使用反馈强化 / 剪枝（成功 +0.1，失败 -0.15，退役不删数据）。</div>
+        <h4 style="margin:6px 0 4px">待确认候选</h4>
+        <div id="evolveCand" style="margin-bottom:12px"><div class="empty">加载中...</div></div>
+        <h4 style="margin:6px 0 4px">已激活积木统计</h4>
+        <div id="evolveStats"><div class="empty">加载中...</div></div>
+      </div>`;
+    loadEvolve();
   } else if (memoryTab === "suggestions") {
     body.innerHTML = `
       <div class="card">
@@ -1591,6 +1603,43 @@ async function resolveCand(id) {
 }
 async function dismissCand(id) {
   try { await ipc("core_candidate_dismiss", { id: id }); loadCore(); }
+  catch (e) { alert("操作失败：" + e.message); }
+}
+
+/* ================= 自进化 ================= */
+const EVOLVE_STATUS_CLS = { active: "", degraded: "err-text", retired: "muted" };
+async function loadEvolve() {
+  const candEl = $("evolveCand"), stEl = $("evolveStats");
+  if (!candEl) return;
+  try {
+    const [cand, stats] = await Promise.all([
+      ipc("evolve_candidates", {}), ipc("evolve_refine_stats", {})
+    ]);
+    const pend = cand.items || [];
+    candEl.innerHTML = pend.length ? pend.map(it => `
+      <div class="list-item">
+        <div><div class="title">${esc(it.name)}</div><div class="sub">${esc(it.summary)} · 触发 ${(it.trigger || []).join("、")} · 置信 ${(it.confidence || 0).toFixed(2)}</div></div>
+        <div class="row" style="gap:6px;flex-wrap:nowrap">
+          <button class="btn sm primary" onclick="evolveConfirm(${it.id})">确认激活</button>
+          <button class="btn sm" onclick="evolveReject(${it.id})">拒绝</button>
+        </div>
+      </div>`).join("") : '<div class="empty">暂无待确认候选</div>';
+    const rows = stats.items || [];
+    stEl.innerHTML = rows.length ? rows.map(it => `
+      <div class="list-item">
+        <div><div class="title">${esc(it.brick_name)}</div><div class="sub">使用 ${it.usage_count} · 成功 ${it.success_count} · 连成 ${it.consecutive_success} · 连败 ${it.consecutive_fail} · 置信 ${it.confidence.toFixed(2)}</div></div>
+        <div class="${EVOLVE_STATUS_CLS[it.status] || ""}" style="font-size:11px">${esc(it.status)}</div>
+      </div>`).join("") : '<div class="empty">暂无已激活积木，确认候选后此处显示使用统计</div>';
+  } catch (e) {
+    candEl.innerHTML = '<div class="err-text">' + esc(e.message) + '</div>';
+  }
+}
+async function evolveConfirm(id) {
+  try { await ipc("evolve_confirm", { id: id }); loadEvolve(); }
+  catch (e) { alert("激活失败：" + e.message); }
+}
+async function evolveReject(id) {
+  try { await ipc("evolve_reject", { id: id }); loadEvolve(); }
   catch (e) { alert("操作失败：" + e.message); }
 }
 
