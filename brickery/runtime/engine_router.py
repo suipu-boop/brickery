@@ -1,13 +1,13 @@
 """§4 引擎路由（clean room）。
 
-统一管理「用什么推理后端」（随朴 2026-08-06 决策：首推 API 为主、本地为备选）：
-- **首选 = 用户显式指定的网络 API**（如 DeepSeek / 通义 / 智谱，国内可直连）：
-  质量最高、function-calling 最稳，是首版主力。
-- **备选 = 进程内嵌本地推理（GGUF + Metal）**：作为 API 不可用时的**自动降级兜底**
-  （断网 / 额度耗尽 / 鉴权失败），隐私安全、不出本机。
-- 红线：API 端点必须用户显式填写（不硬编码任何第三方推理地址）；本地 GGUF 仅作
-  降级兜底，不偷偷外传记忆/内容；两个后端都不可用才抛 NoEngineConfigured，
-  绝不静默连外网。
+统一管理「用什么推理后端」：
+- **聊天 / 推理（complete / run_turn）= 只走用户显式选择的后端**（2026-08-25 拍板）：
+  默认 backend=api（如 DeepSeek / 通义 / 智谱，国内可直连），质量最高、
+  function-calling 最稳；backend=local 仅当用户**显式选择**本地 GGUF（内存充足）
+  时使用。**本地不再作为聊天/推理的自动降级兜底**——API 失败直接上浮报错，
+  绝不静默切换后端（本地小模型质量不足以承担对话/推理，只做规划类幕后任务）。
+- 红线：API 端点必须用户显式填写（不硬编码任何第三方推理地址）；本地 GGUF 不
+  偷偷外传记忆/内容；未配置后端时抛 NoEngineConfigured，绝不静默连外网。
 - 测试证明：无任何配置时调用 complete() 会抛 NoEngineConfigured 且**零出站连接**。
 """
 from __future__ import annotations
@@ -93,11 +93,12 @@ def _engine_available(engine: EngineLike) -> bool:
 
 
 class EngineRouter:
-    """推理后端路由：API 为主、本地 GGUF 为自动降级兜底。
+    """推理后端路由：只走用户显式选择的后端，**无自动降级**。
 
-    两条路径都收敛到统一的 EngineResult，主循环无需关心后端差异。首选后端
-    调用失败时（含未配置 / 网络错误 / 超时 / 鉴权失败）自动尝试备选后端；
-    两个都不可用才抛 NoEngineConfigured。
+    聊天 / 推理（complete / run_turn）仅调用 config.backend 指定的后端
+    （api 或 local），调用失败直接上浮给调用方展示，绝不静默切换后端。
+    2026-08-25 拍板：本地 GGUF 只承担规划类幕后任务，不充当聊天兜底；
+    用户若显式选择 backend=local（内存充足），则本地作为主引擎使用。
     """
 
     def __init__(self, config: EngineConfig, *,
@@ -110,100 +111,47 @@ class EngineRouter:
     # ---- 内部：取某后端的引擎实例（未配置即抛 NoEngineConfigured）----
     def _get_engine(self, backend: str) -> EngineLike:
         if backend == "local":
-            # 条件化降级闸门：本地兜底必须「真可用」——llama_cpp 可导入且存在
-            # 可加载的 GGUF。否则视为未配置，绝不把请求发给跑不起来的引擎（坑：
-            # 用户只配了网络 API 时，本地兜底不可用，应让首选后端的错误直接上浮，
-            # 而不是冒出「本地推理依赖未安装」之类与用户选择无关的鬼话）。
+            # 条件化闸门：本地引擎必须「真可用」——llama_cpp 可导入且存在可加载
+            # 的 GGUF。否则视为未配置（坑：用户只配了网络 API 时，不应冒出
+            # 「本地推理依赖未安装」之类与用户选择无关的鬼话）。
             if self._local is None or not _engine_available(self._local):
                 raise NoEngineConfigured(
                     "本地推理后端不可用（未放置 GGUF 模型，或未安装 llama-cpp-python）。"
-                    "请放置本地模型，或在设置中填写网络 API 端点。"
+                    "请放置本地模型后显式选择本地引擎，或在设置中填写网络 API 端点。"
                 )
             return self._local
         if backend == "api":
             if not self._api or not _engine_available(self._api):
                 raise NoEngineConfigured(
                     "API 推理后端未配置（缺少 api_url 或 api_key）。"
-                    "请在设置中填写网络 API 端点，或放置本地 GGUF 模型改用本地推理。"
+                    "请在设置中填写网络 API 端点。"
                 )
             return self._api
         # 任何非预期 backend：明确报错，绝不回退到外部服务
         raise NoEngineConfigured(
             f"未配置推理后端（backend={backend!r}）。"
             "Shadeling 不会静默连接任何外部地址；"
-            "请在配置中指定本地模型或显式 API 端点。"
+            "请在配置中指定显式 API 端点或本地引擎。"
         )
 
-    def _others(self, preferred: str) -> List[str]:
-        return [b for b in ("api", "local") if b != preferred]
-
-    # ---- 纯文本补全（API 主 / 本地备 自动降级）----
+    # ---- 纯文本补全（只走显式选择的后端，失败上浮）----
     def complete(self, prompt: str, **kw) -> str:
-        preferred = self.config.backend
-        # 1) 先试首选
-        try:
-            return _invoke(self._get_engine(preferred), prompt, **kw)
-        except NoEngineConfigured:
-            pass  # 首选未配置 → 转备选
-        except Exception as e:  # 首选配置了但调用失败（网络/超时/鉴权）
-            return self._try_fallback(preferred, e, prompt, **kw)
-        # 2) 首选未配置 → 试备选
-        return self._try_fallback(preferred, None, prompt, **kw)
+        """纯文本补全：仅调用 config.backend 指定的后端，失败直接上浮。
 
-    def _try_fallback(self, preferred: str,
-                      primary_err: Optional[Exception],
-                      prompt: str, **kw) -> str:
-        last_err: Optional[Exception] = primary_err
-        for b in self._others(preferred):
-            try:
-                return _invoke(self._get_engine(b), prompt, **kw)
-            except NoEngineConfigured:
-                continue
-            except Exception as e:
-                last_err = e
-                continue
-        if last_err is not None:
-            raise last_err
-        raise NoEngineConfigured(
-            f"未配置任何可用推理后端（preferred={preferred!r}）。"
-            "请在配置中指定本地模型或显式 API 端点。"
-        )
+        2026-08-25 拍板：本地 GGUF **不再**作为聊天/推理的自动降级兜底
+        （质量不足以承担对话/推理），仅当用户显式选择 backend=local 时使用；
+        API 失败时直接抛错，由调用方展示，绝不静默切换后端。
+        """
+        return _invoke(self._get_engine(self.config.backend), prompt, **kw)
 
-    # ---- Function-Calling 闭环（阶段 B，含自动降级）----
+    # ---- Function-Calling 闭环（只走显式选择的后端，失败上浮）----
     def run_turn(self, prompt: str, tools: Optional[list] = None, *,
                  stream: bool = False,
                  on_token: Optional[Callable[[str], None]] = None,
                  **kw) -> "EngineResult":
-        preferred = self.config.backend
-        try:
-            return self._run_on_backend(preferred, prompt, tools,
-                                        stream=stream, on_token=on_token, **kw)
-        except NoEngineConfigured:
-            pass
-        except Exception as e:
-            return self._try_fallback_turn(preferred, e, prompt, tools,
-                                           stream=stream, on_token=on_token, **kw)
-        return self._try_fallback_turn(preferred, None, prompt, tools,
-                                       stream=stream, on_token=on_token, **kw)
-
-    def _try_fallback_turn(self, preferred, primary_err, prompt, tools, *,
-                           stream: bool = False,
-                           on_token: Optional[Callable[[str], None]] = None,
-                           **kw):
-        last_err = primary_err
-        for b in self._others(preferred):
-            try:
-                return self._run_on_backend(b, prompt, tools,
-                                            stream=stream, on_token=on_token, **kw)
-            except NoEngineConfigured:
-                continue
-            except Exception as e:
-                last_err = e
-                continue
-        if last_err is not None:
-            raise last_err
-        raise NoEngineConfigured(
-            f"未配置任何可用推理后端（preferred={preferred!r}）。")
+        """Function-Calling 闭环：仅调用 config.backend 指定的后端，失败直接上浮。"""
+        return self._run_on_backend(self.config.backend, prompt, tools,
+                                    stream=stream, on_token=on_token, **kw)
 
     def _run_on_backend(self, backend, prompt, tools, *,
                         stream: bool = False,
@@ -255,7 +203,7 @@ class EngineRouter:
     def set_engine(self, kind: str, engine: EngineLike) -> None:
         """把 EngineBrick 构建好的引擎接入对应后端槽位（不改 config.backend）。
 
-        心脏路由与降级逻辑不变，仅替换 local / api 槽位的引擎实例。
+        路由与「只走显式选择后端」语义不变，仅替换 local / api 槽位的引擎实例。
         首选后端（config.backend）仍由用户显式选择，积木不越权改。
         """
         if kind == "local":

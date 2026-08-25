@@ -17,18 +17,19 @@ from . import paths
 
 @dataclass
 class EngineConfig:
-    """推理引擎配置（随朴 2026-08-06 决策：首推 API 为主、本地为备选）。
+    """推理引擎配置（2026-08-25 拍板：聊天/推理只走显式选择的后端，无自动降级）。
 
-    - 默认 backend=api：**用户显式指定的网络端点为首选**（如 DeepSeek / 通义 /
-      智谱，国内可直连），质量最高、function-calling 最稳，是首版主力。
-    - 本地 GGUF 作为 API 不可用时的**自动降级兜底**（断网 / 额度耗尽 / 鉴权失败），
-      隐私安全、不出本机。
+    - 默认 backend=api：**用户显式指定的网络端点**（如 DeepSeek / 通义 / 智谱，
+      国内可直连），质量最高、function-calling 最稳，是首版主力。
+    - backend=local 仅当用户**显式选择**本地 GGUF（内存充足）时作为主引擎使用；
+      **本地不再作为 API 的自动降级兜底**（质量不足以承担对话/推理，只做规划
+      类幕后任务），API 失败直接上浮报错。
     - api_url / api_key / api_model 仅在用户**显式填写**时非空。
     - 红线（更新）：API 端点必须用户显式填写（不硬编码任何第三方推理地址）；
-      本地 GGUF 仅作降级兜底，不偷偷外传记忆/内容；两个后端都不可用才抛
-      NoEngineConfigured，绝不静默连外网。
+      本地 GGUF 不偷偷外传记忆/内容；未配置后端时抛 NoEngineConfigured，
+      绝不静默连外网。
     """
-    backend: str = "api"             # api | local（api=首选，local=降级兜底）
+    backend: str = "api"             # api | local（用户显式选择，无自动降级）
     local_model: str = ""             # GGUF 文件名（相对 models_root）或绝对路径
     api_url: str = ""                 # 仅当用户显式填写时非空
     api_key: str = ""

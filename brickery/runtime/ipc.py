@@ -573,10 +573,9 @@ class IpcServer:
 
         返回 None 表示找不到该预设（调用方应回退全局引擎）。
         预设为 api 后端 → 用其 api_url/api_key/api_model 建 ApiEngine；
-        预设为 local 后端 → 用其 local_model 建 LocalGGUFEngine；
-        两个后端都按 EngineRouter 的「首选失败自动降级备选」逻辑兜底：
-        - api 预设仍把全局本地引擎作为 fallback 源，断网/鉴权失败时降级本地；
-        - local 预设则把全局 api 引擎作为 fallback 源。
+        预设为 local 后端 → 用其 local_model 建 LocalGGUFEngine。
+        2026-08-25 拍板：EngineRouter 只走预设显式选择的后端，**无自动降级**；
+        传入的另一个引擎仅当用户显式切换 backend 时才被使用。
         """
         profile = None
         for p in (self.config.profiles or []):

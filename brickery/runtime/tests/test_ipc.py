@@ -106,6 +106,11 @@ class IpcIntegrationTest(RuntimeTestCase):
         self.assertIsNone(g["data"]["core"].get("assistant_name"))
 
     def test_chat_with_injected_engine(self):
+        # 2026-08-25 语义：注入的本地引擎需显式选择 backend=local 才会生效
+        # （路由层无自动降级，backend=api 且未配置时直接报错）
+        r = _client(self.srv.port, "config_set",
+                    {"backend": "local", "local_model": "x.gguf"})
+        self.assertTrue(r["ok"])
         r = _client(self.srv.port, "chat",
                     {"message": "你好小影子", "project": "test"})
         self.assertTrue(r["ok"])
