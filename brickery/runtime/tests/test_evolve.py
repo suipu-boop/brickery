@@ -20,6 +20,8 @@ from brickery.runtime.evolve import (
     list_candidates,
     confirm_candidate,
     reject_candidate,
+    refine_from_trace,
+    refine_stats,
 )
 
 
@@ -156,3 +158,103 @@ class TestEvolveConfirmReject(TestCase):
         ok2, msg2 = confirm_candidate(self.home, cand["id"])
         self.assertFalse(ok2)
         self.assertIn("不存在", msg2 or "")
+
+
+class TestRefine(TestCase):
+    """批次 2：refine 反馈精炼——强化 / 剪枝 / 降级 / 恢复 / 退役。"""
+
+    def setUp(self):
+        self.home = Path(tempfile.mkdtemp(prefix="brickery_evolve_refine_"))
+
+    def _activate(self, name="evolve-test", source="evolve:task_a"):
+        d = self.home / "bricks" / name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "brick.json").write_text(json.dumps({
+            "name": name,
+            "trigger": ["测试"],
+            "content": "测试流程",
+            "summary": "测试积木",
+            "source": source,
+        }, ensure_ascii=False), encoding="utf-8")
+
+    def _stats(self, name):
+        conn = sqlite3.connect(str(self.home / "evolve.db"))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM evolve_refine WHERE brick_name=?", (name,)
+        ).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def test_reward_increases_confidence(self):
+        self._activate()
+        refine_from_trace(self.home, ["evolve-test"], True)
+        st = self._stats("evolve-test")
+        self.assertEqual(st["usage_count"], 1)
+        self.assertEqual(st["success_count"], 1)
+        self.assertEqual(st["consecutive_success"], 1)
+        self.assertAlmostEqual(st["confidence"], 0.6)
+        self.assertEqual(st["status"], "active")
+
+    def test_penalty_degrades_then_recovers(self):
+        self._activate()
+        refine_from_trace(self.home, ["evolve-test"], False)
+        st = self._stats("evolve-test")
+        self.assertAlmostEqual(st["confidence"], 0.35)
+        self.assertEqual(st["status"], "degraded")
+        # degraded 连续 3 次成功自动恢复 active
+        for _ in range(3):
+            refine_from_trace(self.home, ["evolve-test"], True)
+        st = self._stats("evolve-test")
+        self.assertEqual(st["status"], "active")
+        self.assertAlmostEqual(st["confidence"], 0.65)
+        self.assertEqual(st["consecutive_success"], 3)
+
+    def test_retire_by_low_confidence(self):
+        self._activate()
+        refine_from_trace(self.home, ["evolve-test"], False)   # 0.35 degraded
+        refine_from_trace(self.home, ["evolve-test"], False)   # 0.20 degraded
+        refine_from_trace(self.home, ["evolve-test"], False)   # 0.05 retired
+        st = self._stats("evolve-test")
+        self.assertEqual(st["status"], "retired")
+        self.assertTrue((self.home / "bricks" / ".retired-evolve-test").is_dir())
+        self.assertFalse((self.home / "bricks" / "evolve-test").exists())
+
+    def test_retire_by_consecutive_fails(self):
+        self._activate()
+        # 先 5 次成功把置信抬到 1.0，再连败 5 次：conf 仍 >= 0.2，靠连败数触发退役
+        for _ in range(5):
+            refine_from_trace(self.home, ["evolve-test"], True)
+        for _ in range(5):
+            refine_from_trace(self.home, ["evolve-test"], False)
+        st = self._stats("evolve-test")
+        self.assertEqual(st["status"], "retired")
+        self.assertEqual(st["consecutive_fail"], 5)
+        self.assertTrue((self.home / "bricks" / ".retired-evolve-test").is_dir())
+
+    def test_retired_not_updated_by_auto(self):
+        self._activate()
+        for _ in range(5):
+            refine_from_trace(self.home, ["evolve-test"], False)
+        before = self._stats("evolve-test")
+        refine_from_trace(self.home, ["evolve-test"], True)
+        after = self._stats("evolve-test")
+        self.assertEqual(before["usage_count"], after["usage_count"])
+        self.assertEqual(after["status"], "retired")
+
+    def test_ignores_non_evolve_brick(self):
+        self._activate(source="market:official")
+        changed = refine_from_trace(self.home, ["evolve-test"], True)
+        self.assertIsNone(changed)
+
+    def test_stats_shape(self):
+        self._activate()
+        refine_from_trace(self.home, ["evolve-test"], True)
+        items = refine_stats(self.home)
+        self.assertEqual(len(items), 1)
+        it = items[0]
+        for k in ("brick_name", "usage_count", "success_count",
+                  "consecutive_success", "consecutive_fail",
+                  "confidence", "status", "last_result_at"):
+            self.assertIn(k, it)
+        self.assertEqual(it["brick_name"], "evolve-test")
