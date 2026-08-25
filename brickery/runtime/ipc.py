@@ -857,10 +857,17 @@ class IpcServer:
                 self._send(conn, {"type": "delta", "req_id": req_id,
                                   "delta": delta})
 
+        def on_event(text: str) -> None:
+            if conn is not None:
+                self._send(conn, {"type": "event", "req_id": req_id,
+                                  "text": text})
+
         try:
+            logger.info("CHAT-DIAG stream pre loop.run")
             reply = loop.run(message, project=project, history=history,
                              open_context_text=open_ctx or None,
-                             on_token=on_token)
+                             on_token=on_token, on_event=on_event)
+            logger.info("CHAT-DIAG stream post loop.run len=%d", len(reply or ""))
         except InterruptedError:
             reply = "（已取消）"
             interrupted = True
@@ -2747,8 +2754,10 @@ def _ensure_agent_home(home: Path, app_resources: Optional[Path]) -> None:
 
 def main(argv: Optional[list] = None) -> int:
     import argparse
+    import faulthandler
     import signal
     import time
+    faulthandler.register(signal.SIGUSR1)  # 诊断：SIGUSR1 dump 全线程栈
     ap = argparse.ArgumentParser(description="Brickery 本地 IPC 服务")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)

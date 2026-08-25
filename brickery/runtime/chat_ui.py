@@ -162,7 +162,7 @@ PAGE_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>随朴 · 桌面 Agent</title>
+<title>Brickery · 桌面 Agent</title>
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --panel2: #1c2128; --line: #2d333b;
@@ -448,7 +448,8 @@ PAGE_HTML = """<!DOCTYPE html>
     width: 44px; height: 44px; border-radius: 4px; cursor: pointer; font-size: 16px;
   }
   .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .typing { color: var(--dim); font-size: 12px; padding: 4px 0; }
+  .typing { color: var(--dim); font-size: 12px; padding: 4px 0; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
   /* ---------- 技能库 / 保险库卡片 ---------- */
   .item-card {
@@ -497,7 +498,7 @@ PAGE_HTML = """<!DOCTYPE html>
   <div class="brand">
     <div class="brand-logo"></div>
     <div>
-      <div class="brand-name">随朴 <b>AGENT</b></div>
+      <div class="brand-name">Brickery <b>AGENT</b></div>
       <div class="brand-tag">本地桌面 Agent</div>
     </div>
   </div>
@@ -529,7 +530,7 @@ async function ipc(method, params) {
   if (!j.ok) throw new Error(j.error || "IPC 调用失败");
   return j.data;
 }
-async function ipcStream(method, params, onDelta, onDone, onError) {
+async function ipcStream(method, params, onDelta, onDone, onError, onEvent) {
   const r = await fetch("/api/ipc", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ method, params: params || {}, stream: true }) });
   if (!r.ok || !r.body) { onError && onError("流式请求失败"); return; }
   const reader = r.body.getReader();
@@ -549,6 +550,7 @@ async function ipcStream(method, params, onDelta, onDone, onError) {
           if (frame.type === "delta") onDelta && onDelta(frame.delta || "");
           else if (frame.type === "done") { onDone && onDone(frame.data || {}); return; }
           else if (frame.type === "error") { onError && onError(frame.error || "流式错误"); return; }
+          else if (frame.type === "event") { onEvent && onEvent(frame.text || ""); }
         }
       }
     }
@@ -756,7 +758,7 @@ function renderMessages() {
   if (!messages.length) { box.innerHTML = '<div class="empty">开始一段新对话吧</div>'; return; }
   box.innerHTML = messages.map((m, i) => {
     const role = m.role === "user" ? "user" : "assistant";
-    const who = role === "user" ? "你" : "随朴";
+    const who = role === "user" ? "你" : "Brickery";
     const sel = selectionMode ? ` onclick="toggleMsgSel(${i})"` : "";
     const selCls = selectedMsgs.has(i) ? " selected" : "";
     const meta = (m.used_tools && m.used_tools.length ? "工具: " + m.used_tools.join(", ") : "") + (m.used_skills && m.used_skills.length ? (m.used_tools && m.used_tools.length ? " · " : "") + "技能: " + m.used_skills.join(", ") : "");
@@ -805,7 +807,7 @@ function exportChat() {
   const s = sessions.find(x => x.id === currentSessionId);
   let md = "# " + (s ? s.title : "会话") + "\\n\\n";
   for (const m of messages) {
-    md += "**" + (m.role === "user" ? "你" : "随朴") + "**\\n\\n" + (m.text || "") + "\\n\\n";
+    md += "**" + (m.role === "user" ? "你" : "Brickery") + "**\\n\\n" + (m.text || "") + "\\n\\n";
   }
   const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
   const a = document.createElement("a");
@@ -833,6 +835,25 @@ function removeAttachment(i) { attachments.splice(i, 1); renderAttachments(); }
 /* 工具确认轮询：模型请求 MEDIUM/HIGH 风险工具时，后端阻塞等裁决，
    前端必须轮询 confirm_next 取待确认项并弹窗，否则 chat 会卡到超时。 */
 let confirmPolling = false;
+/* App 风格确认弹窗（替代原生 confirm：原生在 webview 中样式不统一且可能被拦截） */
+function appConfirm(title, body, okLabel, cancelLabel) {
+  return new Promise(resolve => {
+    const mask = document.createElement("div");
+    mask.className = "modal-mask";
+    mask.innerHTML = '<div class="modal-box" style="width:460px">'
+      + '<h3>' + esc(title) + '</h3>'
+      + '<div style="font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--text);word-break:break-all;margin-bottom:16px">' + esc(body) + '</div>'
+      + '<div class="modal-foot">'
+      + '<button class="btn" id="appCfmNo">' + esc(cancelLabel || "取消") + '</button>'
+      + '<button class="btn primary" id="appCfmYes">' + esc(okLabel || "确定") + '</button>'
+      + '</div></div>';
+    const close = (v) => { mask.remove(); resolve(v); };
+    mask.querySelector("#appCfmNo").onclick = () => close(false);
+    mask.querySelector("#appCfmYes").onclick = () => close(true);
+    mask.addEventListener("click", e => { if (e.target === mask) close(false); });
+    document.body.appendChild(mask);
+  });
+}
 async function confirmPoller() {
   while (confirmPolling) {
     let item = null;
@@ -847,9 +868,51 @@ async function confirmPoller() {
       const keys = Object.keys(a);
       if (keys.length) argsTxt = "\\n参数：" + JSON.stringify(a).slice(0, 400);
     } catch (e) {}
-    const ok = confirm("允许执行工具「" + (item.tool_name || "?") + "」？" + argsTxt + "\\n\\n确定=允许执行，取消=拒绝");
+    const ok = await appConfirm(
+      "等待确认：执行工具",
+      "工具「" + (item.tool_name || "?") + "」" + argsTxt + "\\n\\n允许则继续执行，拒绝则跳过该工具。",
+      "允许执行", "拒绝");
     try { await ipc("confirm_resolve", { id: item.id, decision: ok }); } catch (e) {}
   }
+}
+/* App 风格单行输入弹窗（替代原生 prompt：webview 中原生 prompt 常被拦截导致无法输入） */
+function appPrompt(title, placeholder, initial) {
+  return new Promise(resolve => {
+    const mask = document.createElement("div");
+    mask.className = "modal-mask";
+    mask.innerHTML = '<div class="modal-box" style="width:440px">'
+      + '<h3>' + esc(title) + '</h3>'
+      + '<input id="appPromptInput" class="ipt" style="width:100%;box-sizing:border-box" placeholder="' + esc(placeholder || "") + '" value="' + esc(initial || "") + '">'
+      + '<div class="modal-foot">'
+      + '<button class="btn" id="appPromptNo">取消</button>'
+      + '<button class="btn primary" id="appPromptYes">确定</button>'
+      + '</div></div>';
+    const input = mask.querySelector("#appPromptInput");
+    const close = (v) => { mask.remove(); resolve(v); };
+    const submit = () => close(input.value);
+    mask.querySelector("#appPromptNo").onclick = () => close(null);
+    mask.querySelector("#appPromptYes").onclick = submit;
+    input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+    mask.addEventListener("click", e => { if (e.target === mask) close(null); });
+    document.body.appendChild(mask);
+    input.focus();
+  });
+}
+/* App 风格提示（替代原生 alert） */
+function appAlert(msg) {
+  return new Promise(resolve => {
+    const mask = document.createElement("div");
+    mask.className = "modal-mask";
+    mask.innerHTML = '<div class="modal-box" style="width:400px">'
+      + '<h3>提示</h3>'
+      + '<div style="font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--text);word-break:break-all;margin-bottom:16px">' + esc(msg) + '</div>'
+      + '<div class="modal-foot"><button class="btn primary" id="appAlertOk">确定</button></div>'
+      + '</div></div>';
+    const close = () => { mask.remove(); resolve(); };
+    mask.querySelector("#appAlertOk").onclick = close;
+    mask.addEventListener("click", e => { if (e.target === mask) close(); });
+    document.body.appendChild(mask);
+  });
 }
 
 async function sendMsg() {
@@ -871,8 +934,9 @@ async function sendMsg() {
   renderMessages();
   const box = $("messages");
   const typing = document.createElement("div");
-  typing.className = "typing"; typing.textContent = "思考中...";
+  typing.className = "typing"; typing.textContent = "准备中…";
   box.appendChild(typing); box.scrollTop = box.scrollHeight;
+  const showStatus = (s) => { typing.textContent = s; box.scrollTop = box.scrollHeight; };
   const updateBubble = () => {
     const el = document.querySelector('.msg[data-i="' + aiIdx + '"] .bubble');
     if (!el) return;
@@ -892,7 +956,8 @@ async function sendMsg() {
       err => {
         messages[aiIdx] = { role: "assistant", text: "错误：" + err };
         typing.remove(); updateBubble();
-      });
+      },
+      s => { showStatus(s); });
   } catch (e) {
     messages[aiIdx] = { role: "assistant", text: "网络错误：" + e.message };
     typing.remove(); updateBubble();
@@ -1180,11 +1245,11 @@ async function renderCabinet() {
         <div class="list-item">
           <div>
             <div class="title">${esc(d.title || "未命名")}</div>
-            <div class="sub">${esc(d.id || "")} · ${fmtTime(d.created_at)}</div>
+            <div class="sub">${esc(d.drawer_id || d.id || "")} · ${fmtTime(d.created_at)}</div>
           </div>
           <div class="row">
-            <button class="btn sm" onclick="openDrawer('${esc(d.id)}')">打开</button>
-            <button class="btn sm danger" onclick="deleteDrawer('${esc(d.id)}')">删除</button>
+            <button class="btn sm" onclick="openDrawer('${esc(d.drawer_id || d.id)}')">打开</button>
+            <button class="btn sm danger" onclick="deleteDrawer('${esc(d.drawer_id || d.id)}')">删除</button>
           </div>
         </div>`).join("") || '<div class="empty">暂无抽屉</div>'}
       </div>
@@ -1212,12 +1277,12 @@ async function openDrawer(id) {
         <h3 style="margin:0">${esc(d.title || "未命名")} · 工作台</h3>
         <button class="btn sm" onclick="renderCabinet()">← 返回文件柜</button>
       </div>
-      <div class="hint">${esc(d.id || "")} · 节点 ${nodes.length} · 边 ${edges.length} · kit ${(d.kit || []).length ? esc((d.kit || []).join(", ")) : "未预配"}</div>
+      <div class="hint">${esc(d.drawer_id || d.id || "")} · 节点 ${nodes.length} · 边 ${edges.length} · kit ${(d.kit || []).length ? esc((d.kit || []).join(", ")) : "未预配"}</div>
       <div class="row wrap" style="margin-bottom:10px">
-        <button class="btn sm" onclick="addNode('${esc(d.id)}')">＋ 节点</button>
-        <button class="btn sm" onclick="addEdge('${esc(d.id)}')">＋ 边</button>
-        <button class="btn sm" onclick="syncRecordbook('${esc(d.id)}')">同步记录本</button>
-        <button class="btn sm" onclick="editKit('${esc(d.id)}')">kit 预配</button>
+        <button class="btn sm" onclick="addNode('${esc(d.drawer_id || d.id)}')">＋ 节点</button>
+        <button class="btn sm" onclick="addEdge('${esc(d.drawer_id || d.id)}')">＋ 边</button>
+        <button class="btn sm" onclick="syncRecordbook('${esc(d.drawer_id || d.id)}')">同步记录本</button>
+        <button class="btn sm" onclick="editKit('${esc(d.drawer_id || d.id)}')">kit 预配</button>
       </div>
       <div id="graphCanvas"></div>
       <div class="grid2" style="margin-top:14px">
@@ -1225,11 +1290,11 @@ async function openDrawer(id) {
           <h3>节点</h3>
           ${nodes.map(n => `
             <div class="list-item">
-              <div><div class="title">${esc(n.label || n.id)}</div><div class="sub">${esc(n.type || "")} · ${esc(n.id || "")}</div></div>
+              <div><div class="title">${esc(n.label || n.node_id || n.id)}</div><div class="sub">${esc(n.type || "")} · ${esc(n.node_id || n.id || "")}</div></div>
               <div class="row">
-                <button class="btn sm" onclick="editNode('${esc(n.id)}')">编辑</button>
-                <button class="btn sm" onclick="viewNode('${esc(n.id)}')">解读</button>
-                <button class="btn sm danger" onclick="delNode('${esc(n.id)}')">删</button>
+                <button class="btn sm" onclick="editNode('${esc(n.node_id || n.id)}')">编辑</button>
+                <button class="btn sm" onclick="viewNode('${esc(n.node_id || n.id)}')">解读</button>
+                <button class="btn sm danger" onclick="delNode('${esc(n.node_id || n.id)}')">删</button>
               </div>
             </div>`).join("") || '<div class="empty">暂无节点</div>'}
         </div>
@@ -1287,8 +1352,8 @@ async function editNode(nid) {
     const d = await ipc("drawer_list", {});
     const drawers = d.items || [];
     for (const dr of drawers) {
-      const g = await ipc("drawer_get", { drawer_id: dr.id });
-      const nd = (g.drawer.nodes || []).find(n => n.id === nid);
+      const g = await ipc("drawer_get", { drawer_id: dr.drawer_id || dr.id });
+      const nd = (g.drawer.nodes || []).find(n => (n.node_id || n.id) === nid);
       if (nd) { node = nd; break; }
     }
   } catch (e) {}
@@ -1319,8 +1384,8 @@ async function saveNode() {
     const d = await ipc("drawer_list", {});
     const drawers = d.items || [];
     for (const dr of drawers) {
-      const g = await ipc("drawer_get", { drawer_id: dr.id });
-      if ((g.drawer.nodes || []).some(n => n.id === editingNode)) { openDrawer(dr.id); return; }
+      const g = await ipc("drawer_get", { drawer_id: dr.drawer_id || dr.id });
+      if ((g.drawer.nodes || []).some(n => (n.node_id || n.id) === editingNode)) { openDrawer(dr.drawer_id || dr.id); return; }
     }
     renderCabinet();
   } catch (e) { alert("保存失败：" + e.message); }
@@ -1339,7 +1404,7 @@ function renderRecordbook(d) {
   const secs = [["R", "规则（Rules）"], ["S", "现状（Status）"], ["P", "进度（Progress）"]];
   const anchors = {};
   for (const n of nodes) {
-    if (n.type === "anchor" && /::[RSP]$/.test(n.id)) anchors[n.id.slice(-1)] = n;
+    if (n.type === "anchor" && /::[RSP]$/.test(n.node_id || n.id)) anchors[(n.node_id || n.id).slice(-1)] = n;
   }
   box.innerHTML = secs.map(([code, title]) => {
     const a = anchors[code];
@@ -1350,8 +1415,8 @@ function renderRecordbook(d) {
       </div>`;
   }).join("") + `
     <div class="row">
-      <button class="btn primary" onclick="saveRecordbook('${esc(d.id)}')">保存记录本</button>
-      <button class="btn ghost" onclick="syncRecordbook('${esc(d.id)}')">从节点重生成</button>
+      <button class="btn primary" onclick="saveRecordbook('${esc(d.drawer_id || d.id)}')">保存记录本</button>
+      <button class="btn ghost" onclick="syncRecordbook('${esc(d.drawer_id || d.id)}')">从节点重生成</button>
     </div>`;
 }
 async function saveRecordbook(did) {
@@ -1375,10 +1440,10 @@ function renderDrawerChat(d) {
     <div id="dcMsgs" class="pre" style="max-height:220px;overflow:auto;margin-bottom:8px">（项目聊天，反馈留在工作台内）</div>
     <div class="row">
       <input id="dcInput" placeholder="输入项目消息，Enter 发送">
-      <button class="btn primary" onclick="sendDrawerChat('${esc(d.id)}')">发送</button>
+      <button class="btn primary" onclick="sendDrawerChat('${esc(d.drawer_id || d.id)}')">发送</button>
     </div>`;
   const inp = $("dcInput");
-  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); sendDrawerChat(d.id); } });
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); sendDrawerChat(d.drawer_id || d.id); } });
 }
 async function sendDrawerChat(did) {
   const inp = $("dcInput");
@@ -1386,15 +1451,15 @@ async function sendDrawerChat(did) {
   if (!msg) return;
   const box = $("dcMsgs");
   drawerChatHistory.push({ role: "user", text: msg });
-  if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "随朴：") + m.text).join("\\n");
+  if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "Brickery：") + m.text).join("\\n");
   if (inp) inp.value = "";
   try {
     const r = await ipc("drawer_chat", { drawer_id: did, message: msg });
     drawerChatHistory.push({ role: "assistant", text: r.reply || "" });
-    if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "随朴：") + m.text).join("\\n");
+    if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "Brickery：") + m.text).join("\\n");
   } catch (e) {
     drawerChatHistory.push({ role: "assistant", text: "（项目聊天失败：" + e.message + "）" });
-    if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "随朴：") + m.text).join("\\n");
+    if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "Brickery：") + m.text).join("\\n");
   }
 }
 
@@ -1560,7 +1625,7 @@ async function loadCore() {
         <div><div class="title">${esc(k)}</div><div class="sub">${esc(v)}</div></div>
         <button class="btn sm" onclick="editCore('${esc(k)}')">编辑</button>
       </div>`).join("") : '<div class="empty">暂无手动槽，点击下方按钮添加</div>') + `
-      <div class="row" style="margin-top:6px"><button class="btn sm" onclick="addCore()">添加</button></div>`;
+      <div style="margin-top:10px"><button class="btn primary" style="width:100%;padding:9px 12px;font-size:14px" onclick="addCore()">＋ 添加手动槽</button></div>`;
     const sm = s.items || [];
     smEl.innerHTML = '<h4>智能槽（自动归纳）</h4>' + (sm.length ? sm.map(it => `
       <div class="list-item">
@@ -1579,27 +1644,27 @@ async function loadCore() {
   } catch (e) { manEl.innerHTML = '<div class="err-text">' + esc(e.message) + '</div>'; }
 }
 async function editCore(attr) {
-  const val = prompt("编辑「" + attr + "」的值（留空删除）：");
+  const val = await appPrompt("编辑「" + attr + "」的值（留空删除）", "输入新的值…", "");
   if (val == null) return;
   try { await ipc("core_set", { items: [{ attribute: attr, value: val }] }); loadCore(); }
-  catch (e) { alert("更新失败：" + e.message); }
+  catch (e) { await appAlert("更新失败：" + e.message); }
 }
 async function addCore() {
-  const attr = prompt("新槽名称（如：我的目标）：");
+  const attr = await appPrompt("新槽名称（如：我的目标）", "例如：我的目标");
   if (!attr) return;
-  const val = prompt("内容：");
+  const val = await appPrompt("「" + attr + "」的内容", "例如：三个月内发布 Brickery v1.0");
   if (val == null) return;
   try { await ipc("core_set", { items: [{ attribute: attr, value: val }] }); loadCore(); }
-  catch (e) { alert("添加失败：" + e.message); }
+  catch (e) { await appAlert("添加失败：" + e.message); }
 }
 async function delSmart(label) {
-  if (!confirm("删除智能槽「" + label + "」？")) return;
+  if (!await appConfirm("删除智能槽", "删除「" + label + "」？删除后该归纳不再注入。", "删除", "取消")) return;
   try { await ipc("core_smart_delete", { label: label }); loadCore(); }
-  catch (e) { alert("删除失败：" + e.message); }
+  catch (e) { await appAlert("删除失败：" + e.message); }
 }
 async function resolveCand(id) {
   try { await ipc("core_candidate_resolve", { id: id }); loadCore(); }
-  catch (e) { alert("写入失败：" + e.message); }
+  catch (e) { await appAlert("写入失败：" + e.message); }
 }
 async function dismissCand(id) {
   try { await ipc("core_candidate_dismiss", { id: id }); loadCore(); }
@@ -2297,7 +2362,7 @@ function drawGraph(nodes, edges) {
   nodes.forEach((n, i) => {
     const angle = (i / Math.max(nodes.length, 1)) * Math.PI * 2 - Math.PI / 2;
     const r = Math.min(W, H) * 0.32;
-    pos[n.id] = { x: W / 2 + r * Math.cos(angle), y: H / 2 + r * Math.sin(angle) };
+    pos[n.node_id || n.id] = { x: W / 2 + r * Math.cos(angle), y: H / 2 + r * Math.sin(angle) };
   });
   let html = "";
   for (const e of edges) {
@@ -2309,9 +2374,10 @@ function drawGraph(nodes, edges) {
     html += '<div class="g-edge" style="left:' + a.x + 'px;top:' + a.y + 'px;width:' + len + 'px;transform:rotate(' + ang + 'deg)"><span class="rel">' + esc(e.relation || "") + '</span></div>';
   }
   for (const n of nodes) {
-    const p = pos[n.id] || { x: W / 2, y: H / 2 };
+    const nid2 = n.node_id || n.id;
+    const p = pos[nid2] || { x: W / 2, y: H / 2 };
     const color = NODE_COLORS[n.type] || "#8b949e";
-    html += '<div class="g-node" style="left:' + (p.x - 60) + 'px;top:' + (p.y - 14) + 'px;border-color:' + color + '" title="' + esc(n.id) + '" onclick="editNode(\\'' + esc(n.id) + '\\')">' + esc(n.label || n.id) + '</div>';
+    html += '<div class="g-node" style="left:' + (p.x - 60) + 'px;top:' + (p.y - 14) + 'px;border-color:' + color + '" title="' + esc(nid2) + '" onclick="editNode(\\'' + esc(nid2) + '\\')">' + esc(n.label || nid2) + '</div>';
   }
   canvas.innerHTML = html;
 }

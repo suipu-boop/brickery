@@ -12,11 +12,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 import time
 import uuid
 from typing import Callable, List, Optional
+
+logger = logging.getLogger("brickery.loop")
 
 from .engine_router import EngineRouter, NoEngineConfigured
 from .skills import SkillRegistry
@@ -212,11 +215,14 @@ class AgentLoop:
             core = _get_core() or {}
             an = (core.get("assistant_name") or "").strip()
             un = (core.get("user_name") or "").strip()
+            uw = (core.get("user_work") or "").strip()
             identities = []
             if an:
                 identities.append(f"你叫{an}")
             if un:
                 identities.append(f"用户名叫{un}")
+            if uw:
+                identities.append(f"用户从事{uw}")
             head = f"（{('、'.join(identities))}，请用这些称呼对话）\n" if identities else ""
             return f"【固定核】\n{head}{text}"
         except Exception:
@@ -261,10 +267,15 @@ class AgentLoop:
             history: Optional[list] = None,
             open_context_text: Optional[str] = None,
             on_token: Optional[Callable[[str], None]] = None,
+            on_event: Optional[Callable[[str], None]] = None,
             memory_sessions: Optional[list] = None) -> str:
         self._tool_latencies = []
+        if on_event is not None:
+            on_event("正在整理对话记忆…")
         # 1. 先存档用户输入（保证已存档数据不丢，即使后续推理失败）
+        logger.info("LOOP-DIAG archive begin")
         self.memory.archive(self.session, [user_message], project=project)
+        logger.info("LOOP-DIAG archive done")
 
         # 2. 可中断检查点（取消后已存档的输入保留）
         self._check_stop()
@@ -273,6 +284,9 @@ class AgentLoop:
         # 安全降级：memory.surface 失败或非 list（如测试桩）时不注入，不阻断主流程。
         memory_text = ""
         try:
+            if on_event is not None:
+                on_event("正在提取相关记忆…")
+            logger.info("LOOP-DIAG surface begin")
             now = time.time()
             idle_seconds = max(0.0, now - self._last_active) if self._last_active else 0.0
             recent_history = [h.get("text", "") for h in (history or [])][-3:]
@@ -312,6 +326,10 @@ class AgentLoop:
                 # 流式：仅最终回复轮（无 tool_calls）会实时回调 on_token；
                 # 工具轮引擎不外流 content（ApiEngine 已按 saw_tool_call 抑制）。
                 # 旧引擎/测试桩不支持 stream 时 TypeError 降级为非流式，功能不退化。
+                if on_event is not None:
+                    on_event("正在思考…" if executed == 0
+                             else f"已调用 {executed} 个工具，继续推理…")
+                logger.info("LOOP-DIAG engine.run_turn begin executed=%d tools=%d", executed, len(tool_schemas))
                 try:
                     result = self.engine.run_turn(
                         turn_prompt, tools=tool_schemas,
@@ -346,12 +364,16 @@ class AgentLoop:
                         continue
                     # —— 交互确认闸门（§3.4）：MEDIUM/HIGH 风险工具阻塞等确认 ——
                     if tool.risk in (RiskLevel.MEDIUM, RiskLevel.HIGH):
+                        if on_event is not None:
+                            on_event(f"等待你确认：执行工具 {tc.name}？")
                         if not self.confirmation.ask(tc, tool):
                             self.last_tools.append(tc.name)
                             self.last_tool_log.append(
                                 f"[工具调用被用户拒绝：{tc.name}]")
                             continue
                     # —— 执行 handler（出错不拖垮主循环）——
+                    if on_event is not None:
+                        on_event(f"正在调用工具：{tc.name}…")
                     t0 = time.perf_counter()
                     try:
                         raw = tool.handler(**(tc.arguments or {}))

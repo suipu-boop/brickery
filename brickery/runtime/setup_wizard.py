@@ -25,6 +25,7 @@ from typing import Dict, List, Optional
 
 from . import config as _config
 from . import model_catalog as _catalog
+from ..memory.fixed_core import get_core as _get_core, set_core as _set_core
 
 HOST = "127.0.0.1"
 PORT = 18766
@@ -138,7 +139,8 @@ PAGE_HTML = """<!DOCTYPE html>
   <div class="steps">
     <div class="step-ind active" data-step="1">1 · 推理后端</div>
     <div class="step-ind" data-step="2">2 · 数据与备份</div>
-    <div class="step-ind" data-step="3">3 · 完成</div>
+    <div class="step-ind" data-step="3">3 · 认识彼此</div>
+    <div class="step-ind" data-step="4">4 · 完成</div>
   </div>
 
   <div class="card step-panel" id="step1">
@@ -200,12 +202,28 @@ PAGE_HTML = """<!DOCTYPE html>
   </div>
 
   <div class="card step-panel" id="step3" style="display:none">
-    <h2>第三步 · 完成</h2>
+    <h2>第三步 · 认识彼此</h2>
+    <p class="sub">给我起个名字，也让我认识你。这些信息会写入固定核，之后每次对话我都会记得。</p>
+    <label>给 AI 起个名字（可留空，默认叫 Brickery）</label>
+    <input id="assistant_name" placeholder="例如：小马">
+    <label>怎么称呼你（你的名字或昵称）</label>
+    <input id="user_name" placeholder="例如：阿明">
+    <label>你的工作 / 角色（一句话即可）</label>
+    <input id="user_work" placeholder="例如：独立开发者，做积木平台">
+    <div class="status" id="idStatus"></div>
+    <div class="nav">
+      <button class="btn ghost" onclick="goStep(2)">上一步</button>
+      <button class="btn" onclick="goStep(4)">下一步</button>
+    </div>
+  </div>
+
+  <div class="card step-panel" id="step4" style="display:none">
+    <h2>第四步 · 完成</h2>
     <p class="sub">确认以下配置后保存。配置仅存本机。</p>
     <div class="summary" id="summary"></div>
     <div class="status" id="saveStatus"></div>
     <div class="nav">
-      <button class="btn ghost" onclick="goStep(2)">上一步</button>
+      <button class="btn ghost" onclick="goStep(3)">上一步</button>
       <button class="btn" id="saveBtn">保存配置</button>
       <button class="btn ghost" id="verifyBtn">验证配置</button>
     </div>
@@ -259,6 +277,15 @@ async function init() {
     if (cfg.config.local_model) $("local_model").value = cfg.config.local_model;
     toggleBackend();
   }
+  // 预填固定核身份（认识彼此页）：已配置过则回显
+  try {
+    const id = await jget("/api/identity");
+    if (id.ok && id.core) {
+      if (id.core.assistant_name) $("assistant_name").value = id.core.assistant_name;
+      if (id.core.user_name) $("user_name").value = id.core.user_name;
+      if (id.core.user_work) $("user_work").value = id.core.user_work;
+    }
+  } catch (e) { /* 忽略：首次引导可能尚无记忆库 */ }
   loadModels();
 }
 
@@ -340,11 +367,11 @@ async function downloadModel(id) {
 $("backend").onchange = toggleBackend;
 
 function goStep(n) {
-  [1, 2, 3].forEach(i => {
+  [1, 2, 3, 4].forEach(i => {
     $("step" + i).style.display = i === n ? "" : "none";
     document.querySelector('.step-ind[data-step="' + i + '"]').classList.toggle("active", i === n);
   });
-  if (n === 3) renderSummary();
+  if (n === 4) renderSummary();
 }
 
 function renderSummary() {
@@ -356,6 +383,9 @@ function renderSummary() {
     ["模型", $("api_model").value || $("local_model").value || "—"],
     ["备份文件夹", $("backup_dir").value || "—"],
     ["产出文件夹", $("output_dir").value || "—"],
+    ["AI 名字", $("assistant_name").value.trim() || "Brickery（默认）"],
+    ["怎么称呼你", $("user_name").value.trim() || "—"],
+    ["你的工作", $("user_work").value.trim() || "—"],
   ];
   $("summary").innerHTML = rows.map(([k, v]) =>
     '<div class="sum-row"><span>' + k + '</span><b>' + v + '</b></div>').join("");
@@ -386,6 +416,12 @@ $("saveBtn").onclick = async () => {
     output_dir: $("output_dir").value.trim(),
   };
   if (planMode === "coding" && !body.api_name) body.api_name = "我的 Coding Plan";
+  // 先写固定核身份（认识彼此页），失败不阻塞主配置保存
+  await jpost("/api/identity", {
+    assistant_name: $("assistant_name").value.trim(),
+    user_name: $("user_name").value.trim(),
+    user_work: $("user_work").value.trim(),
+  });
   const r = await jpost("/api/config", body);
   if (r.ok) {
     setStatus(st, "配置已保存，正在进入聊天...", true);
@@ -498,6 +534,8 @@ class _Handler(BaseHTTPRequestHandler):
                     "local_model": cfg.engine.local_model,
                 },
             })
+        elif self.path == "/api/identity":
+            self._send(200, {"ok": True, "core": self._identity_get()})
         else:
             self._send(404, {"ok": False, "error": "not found"})
 
@@ -505,6 +543,8 @@ class _Handler(BaseHTTPRequestHandler):
         data = self._read_json()
         if self.path == "/api/config":
             self._save_config(data)
+        elif self.path == "/api/identity":
+            self._identity_set(data)
         elif self.path == "/api/verify":
             self._verify()
         elif self.path == "/api/download":
@@ -513,6 +553,24 @@ class _Handler(BaseHTTPRequestHandler):
             self._pick_folder()
         else:
             self._send(404, {"ok": False, "error": "not found"})
+
+    def _identity_get(self) -> Dict:
+        """读固定核身份槽（认识彼此页回显用）。"""
+        try:
+            core = _get_core() or {}
+            return {k: core.get(k, "") for k in ("assistant_name", "user_name", "user_work")}
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def _identity_set(self, data: Dict) -> None:
+        """写固定核身份槽：assistant_name / user_name / user_work（空值删除该条）。"""
+        try:
+            for attr in ("assistant_name", "user_name", "user_work"):
+                if attr in data:
+                    _set_core(attr, str(data[attr] or "").strip())
+            self._send(200, {"ok": True})
+        except Exception as e:  # noqa: BLE001
+            self._send(500, {"ok": False, "error": str(e)})
 
     def _model_list(self) -> List[Dict]:
         cfg = _load()
