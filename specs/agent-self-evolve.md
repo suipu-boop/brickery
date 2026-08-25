@@ -118,3 +118,32 @@ observe → 判定 → distill → verify → 确认 → reuse → refine →（
 3. 发布路径：候选确认激活后是否允许直接发布积木库？还是本地复用 N 次后才开放发布？
 4. 蒸馏器形态：内核能力（随底座分发）还是做成内置积木（可拔）？建议前者，底座行为不应可拔。
 *（内容由AI生成，仅供参考）*
+
+---
+
+## 9. 实施状态（2026-08-25 更新，跨会话对齐用）
+
+> 其他会话续做本主题时，先读本节再读正文。
+
+### 批次 1：observe → 阈值 → distill → verify → pending → confirm/reject（已完成）
+
+- **PR #9**（feat/agent-self-evolve → main，合并 commit 4fb173a）已合入：
+  - `brickery/runtime/evolve.py`（新增）：observe / distill / observe_and_maybe_distill / list_candidates / confirm_candidate / reject_candidate / _verify
+  - `brickery/runtime/loop.py`：回合后异步 `observe_and_maybe_distill`（try/except 静默保护）
+  - `brickery/runtime/ipc.py`：新增 `_h_evolve_candidates` / `_h_evolve_confirm` / `_h_evolve_reject`
+  - `brickery/runtime/chat_ui.py`：白名单放行 `evolve_candidates` / `evolve_confirm` / `evolve_reject`
+  - `brickery/runtime/tests/test_evolve.py`（新增）：9 例全链路单测；runtime 全量 228 passed
+- **运行中副本已同步**：/Applications/shadelingmac0.0.1.app/Contents/Resources/brickery-runtime/ 四个文件与仓库 diff 一致；chat_ui（18767）与底座 ipc（18765）均已重启加载新代码
+- **实测验证**：`POST /api/ipc {"method":"evolve_candidates"}` 返回 `{"ok": true, "data": {"items": []}}`
+- **重要事实**：evolve 数据落 `home/memory.db`（pending_candidates 表）与 `home/evolve.db`（evolve_traces 表）；home = `~/Library/Application Support/shadelingmac0.0.1`。历史代码曾误用 `paths.memory_db`，已改为 evolve.py 内部 `_memory_db(home)` 直接定位 `home/memory.db`（paths.py 只提供 `get_memory_db()` 且不带 home 参数，勿再回退）
+- **当前限制**：chat_ui 前端无 evolve 候选展示 UI，候选确认仅能走 IPC；如需界面入口需另加前端面板（改前先落盘方案）
+
+### 批次 2（待办）：refine 反馈精炼
+
+- 成功强化 / 失败剪枝：confirm 后按实际复用效果更新 confidence；候选激活后效果差应支持降级/移除
+- 待批次 2 落盘设计后再动代码
+
+### 关联规则（已拍板）
+
+- 快速迭代通道：`specs/agent-test-feedback-loop.md`（状态已确立）——先改运行中副本、重启即测、必须同步仓库
+- 发布流程：`specs/release-process.md`（v1）——PR 合并涉及 runtime 等范围须走发布闭环；本次因判定为生成 agent 侧能力，未重建工坊产物
