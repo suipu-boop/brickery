@@ -402,6 +402,20 @@ class AgentLoop:
                 daemon=True,
             ).start()
 
+        # §自进化：回合后异步记录任务轨迹并判定蒸馏（出错静默，不阻塞主流程）
+        try:
+            from .evolve import observe_and_maybe_distill
+            from .paths import get_home
+            threading.Thread(
+                target=observe_and_maybe_distill,
+                args=(get_home(), self.session, self.last_tools,
+                      user_message, reply, bool(reply and reply.strip()),
+                      self.shadow),
+                daemon=True,
+            ).start()
+        except Exception:
+            pass
+
         return reply
 
     def _collect_interoception(self, user_message, reply, history,

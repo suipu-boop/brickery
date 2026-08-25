@@ -1058,6 +1058,24 @@ class IpcServer:
             c.execute("UPDATE pending_candidates SET status='dismissed' WHERE id=?", (cid,))
         return {"ok": True, "id": cid}
 
+    # ---- 自进化（evolve）候选确认 ----
+    def _h_evolve_candidates(self, params):
+        """列出待确认的自进化候选（label 前缀 evolve:）。"""
+        from .evolve import list_candidates
+        return {"items": list_candidates(self.config.home)}
+
+    def _h_evolve_confirm(self, params):
+        """确认候选 → 写入 home/bricks 激活，pending 标记 resolved。"""
+        from .evolve import confirm_candidate
+        ok, msg = confirm_candidate(self.config.home, int(params.get("id", 0)))
+        return {"ok": ok, "error": None if ok else msg, "id": params.get("id", 0)}
+
+    def _h_evolve_reject(self, params):
+        """拒绝候选 → 标记 rejected，不激活。"""
+        from .evolve import reject_candidate
+        ok, msg = reject_candidate(self.config.home, int(params.get("id", 0)))
+        return {"ok": ok, "error": None if ok else msg, "id": params.get("id", 0)}
+
     def _h_suggestions(self, params):
         return {"items": self.memory.suggest(
             params.get("context", ""),

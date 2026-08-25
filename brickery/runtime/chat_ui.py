@@ -62,6 +62,7 @@ IPC_ALLOWED_METHODS = {
     "memory_search", "memory_export", "recall", "portrait", "portrait_update",
     "core_get", "core_set", "core_smart_get", "core_smart_delete",
     "core_candidates", "core_candidate_resolve", "core_candidate_dismiss",
+    "evolve_candidates", "evolve_confirm", "evolve_reject",
     "suggestions", "suggestion_feedback",
     # agent 配置只读
     "agent_get",
