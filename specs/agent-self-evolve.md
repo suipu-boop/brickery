@@ -140,13 +140,21 @@ observe → 判定 → distill → verify → 确认 → reuse → refine →（
 
 ### 批次 2（已完成）：refine 反馈精炼
 
-- **实现**（2026-08-25，对应第 10 节设计）：
-  - `brickery/runtime/evolve.py`：新增 `evolve_refine` 表（brick_name 主键 + usage/success/连成/连败/confidence/status）；`refine_from_trace`（成功 +0.1 / 失败 -0.15，conf<0.4 降级 degraded，conf<0.2 或连 5 败退役改名 `.retired-<name>` 不删数据，degraded 连续 3 成功自动恢复 active，retired 不自动复活）；`refine_stats` 只读统计；`observe_and_maybe_distill` 内嵌挂钩（静默保护）
+- **PR #11**（feat/evolve-refine，待用户 GitHub 合并；依赖 #10 先合并后 diff 收敛）：
+  - 提交 `e3e51c6`：feat: 自进化批次2 refine 反馈精炼（5 文件，+403/-6）
+  - `brickery/runtime/evolve.py`：新增 `evolve_refine` 表（brick_name 主键 + usage/success/连成/连败/confidence/status）；`refine_from_trace`（成功 +0.1 / 失败 -0.15，conf<0.4 降级 degraded，conf<0.2 或连 5 败退役改名 `.retired-<name>` 不删数据，degraded 连续 3 成功自动恢复 active，retired 不自动复活）；`refine_stats` 只读统计；`observe_and_maybe_distill` 内嵌挂钩（静默保护，refine 失败不影响蒸馏主链路）
   - `brickery/runtime/ipc.py`：新增 `_h_evolve_refine_stats`（只读）
   - `brickery/runtime/chat_ui.py`：白名单放行 `evolve_refine_stats`；记忆页新增"自进化"tab：待确认候选（确认激活/拒绝）+ 已激活积木统计
-  - `brickery/runtime/tests/test_evolve.py`：批次 2 新增 7 例（强化/降级恢复/双路径退役/退役不更新/非 evolve 不参与/统计形状）；runtime 全量 235 passed
+  - `brickery/runtime/tests/test_evolve.py`：批次 2 新增 7 例（强化/降级恢复/双路径退役/退役不更新/非 evolve 不参与/统计形状）；runtime 全量 235 passed（`discover -s brickery/runtime/tests -t brickery/runtime`）
+  - `specs/agent-self-evolve.md`：批次 2 状态更新 + §10.7 决策落盘
 - **已决策项**（见 10.7）：惩罚 0.15 > 奖励 0.1；degraded 可自动恢复、retired 人工确认；批次 1+2 合并加"自进化"前端面板
-- **待办**：运行中副本同步 + 重启生效 + IPC 实测（见批次 1 同款流程）
+- **运行中副本已同步**：/Applications/shadelingmac0.0.1.app/Contents/Resources/brickery-runtime/ 三个文件（evolve.py / ipc.py / chat_ui.py）与仓库 diff 一致；ipc（18765）与 chat_ui（18767）已重启加载新代码（新 PID 42541/42540）
+- **实测验证**：`POST http://127.0.0.1:18767/api/ipc {"method":"evolve_refine_stats"}` 返回 `{"ok": true, "data": {"items": []}}`（无已激活积木，符合预期）；`evolve_candidates` 同返回空
+- **重要踩坑**：
+  - 浮点边界：0.5-0.15*2 计算得 0.1999... 会提前误触发 `conf<0.2` 退役判断 → `refine_from_trace` 内 conf 先 `round(...,3)` 再判定
+  - 全量测试必须 `python -m unittest discover -s brickery/runtime/tests -t brickery/runtime`；直接 `discover -s brickery/runtime/tests` 因测试模块相对导入（`from .base import ...`）报 `_FailedTest`，属启动方式问题非代码问题
+  - IPC 实测走 chat_ui 18767（HTTP 桥）；18765 底座为 JSON Lines 协议，curl 会 `Received HTTP/0.9 when not allowed`
+  - 重启命令若被用户中断，进程可能已起：用 `lsof -i :18765 -i :18767` 验证新 PID，勿重复 kill（log 中 OSError Address already in use 为启动竞争噪声）
 
 ### 关联规则（已拍板）
 
@@ -157,7 +165,7 @@ observe → 判定 → distill → verify → 确认 → reuse → refine →（
 
 ## 10. 批次 2 设计：refine 反馈精炼（2026-08-25 落盘，已按设计实现）
 
-> 状态：已实现（代码 + 单测 + 前端面板），待运行中副本同步与实机验证。
+> 状态：已实现（代码 + 单测 + 前端面板 + 运行中副本同步 + IPC 实测通过）。
 
 ### 10.1 目标
 
