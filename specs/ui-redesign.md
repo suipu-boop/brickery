@@ -122,7 +122,7 @@
 | chat_ui 设置页 | `#secLocal` 受 `syncBackendSections` 控制，backend 非 local 时整块隐藏 | 默认 API 模式下「本地模型」区块直接消失 |
 | chat_ui 设置页模型目录 | `modelList` 只读列表，无下载按钮 | 运行时只能手填路径，不能下载 |
 | 顶栏引擎状态 | 仅文字「本地引擎 就绪/未就绪」，无操作入口 | 无法跳转到模型管理 |
-| 代码偏差 | `engine_router.py` 中 local 仍为聊天/推理「自动降级兜底」（complete 首选失败→备选） | 与 p4-packaging §5（2026-08-17 拍板：本地不做聊天兜底）不一致，需核对收敛 |
+| 代码偏差 | `engine_router.py` 曾把 local 作聊天/推理「自动降级兜底」（complete 首选失败→备选） | 与 p4-packaging §5（2026-08-17 拍板：本地不做聊天兜底）不一致；**已收敛（2026-08-25）**：complete/run_turn 只走显式选择后端，API 失败直接上浮 |
 
 **改造方案**：
 
