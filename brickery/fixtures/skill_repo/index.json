@@ -1,6 +1,6 @@
 {
   "schema": "shadeling-skill-repo/v1",
-  "updated_at": "2026-08-09",
+  "updated_at": "2026-08-26",
   "maintainer": "Shadeling 官方策展源（示例）",
   "skills": [
     {
@@ -10,7 +10,15 @@
       "author": "随朴",
       "summary": "用 DocWritePro 工具生成带复杂排版的 docx/xlsx/pptx（约 193MB 引擎，安装时下载）",
       "category": "文档处理",
-      "tags": ["office", "word", "excel", "ppt", "报告", "高配", "复杂排版"],
+      "tags": [
+        "office",
+        "word",
+        "excel",
+        "ppt",
+        "报告",
+        "高配",
+        "复杂排版"
+      ],
       "download_url": "high-config-doc/1.0.0.json"
     },
     {
@@ -20,7 +28,11 @@
       "author": "随朴",
       "summary": "从 PDF 提取正文并生成结构化摘要",
       "category": "文档处理",
-      "tags": ["pdf", "office", "摘要"],
+      "tags": [
+        "pdf",
+        "office",
+        "摘要"
+      ],
       "download_url": "pdf-extractor/1.0.0.json"
     },
     {
@@ -30,7 +42,11 @@
       "author": "随朴",
       "summary": "把对话/录音整理成待办+决议的会议纪要",
       "category": "办公",
-      "tags": ["会议", "纪要", "待办"],
+      "tags": [
+        "会议",
+        "纪要",
+        "待办"
+      ],
       "download_url": "meeting-minutes/1.1.0.json"
     },
     {
@@ -40,7 +56,11 @@
       "author": "社区",
       "summary": "按安全/性能/可读性维度审查代码片段",
       "category": "开发",
-      "tags": ["code", "review", "质量"],
+      "tags": [
+        "code",
+        "review",
+        "质量"
+      ],
       "download_url": "code-reviewer/0.9.0.json"
     },
     {
@@ -50,8 +70,23 @@
       "author": "随朴",
       "summary": "用 DocWrite 工具生成 docx/xlsx/pptx 文档",
       "category": "文档处理",
-      "tags": ["office", "word", "excel", "ppt", "报告"],
+      "tags": [
+        "office",
+        "word",
+        "excel",
+        "ppt",
+        "报告"
+      ],
       "download_url": "document-writer/1.0.0.json"
+    },
+    {
+      "id": "browser",
+      "name": "浏览器操作",
+      "version": "1.0.0",
+      "author": "Shadeling（对接 Tencent/BrowserSkill, MIT）",
+      "summary": "对接腾讯开源 BrowserSkill(bsk)，操作真实已登录浏览器：复用登录态、Agent Window 隔离、Human-in-loop",
+      "category": "浏览器",
+      "download_url": "browser/1.0.0.json"
     }
   ]
 }

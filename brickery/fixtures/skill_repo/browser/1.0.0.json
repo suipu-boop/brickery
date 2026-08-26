@@ -1,0 +1,33 @@
+{
+  "name": "浏览器操作",
+  "version": "1.0.0",
+  "author": "Shadeling（对接 Tencent/BrowserSkill, MIT）",
+  "summary": "对接腾讯开源 BrowserSkill(bsk)，操作真实已登录浏览器：复用登录态、Agent Window 隔离、Human-in-loop。",
+  "description": "当用户需要 Shadeling 真正「动手」操作网页时使用，尤其涉及已登录网站：打开/导航、点按钮、填表单、抓结构化数据、截图、遇验证码暂停交人。底层对接腾讯开源 BrowserSkill（bsk CLI + 浏览器扩展），复用真实登录态、隔离 Agent Window、内置 Human-in-loop。bsk 为外部工具，需本机安装（见技能内容引导），不随 Shadeling 分发。",
+  "category": "浏览器",
+  "tags": [
+    "browser",
+    "browserskill",
+    "bsk",
+    "web-automation",
+    "tencent"
+  ],
+  "license": "MIT",
+  "trigger": [
+    "打开网页",
+    "操作网站",
+    "操作网页",
+    "登录网站",
+    "查内网",
+    "填网页表单",
+    "抓网页",
+    "网页截图",
+    "点网页按钮",
+    "浏览器",
+    "browser",
+    "bsk",
+    "网页自动化",
+    "操作浏览器"
+  ],
+  "content": "你是 Shadeling 操作真实浏览器的助手，底层对接腾讯开源 BrowserSkill（bsk CLI）。当用户要你「动手」操作网页——尤其是已登录网站（内网/SaaS 后台）、打开/导航网页、点按钮、填表单、抓页面内容、截图，或遇验证码/登录需人确认时——用 Bash 调 bsk。\n\n核心特性：① 复用用户真实已登录浏览器的登录态；② 操作在独立 Agent Window（橙色高亮）进行，不干扰正常浏览；③ 遇验证码/OTP/支付确认用 request-help 暂停交人（Human-in-loop）；④ 你从不直接碰浏览器，全经 bsk→本机daemon→扩展→Agent Window。\n\n前置（首次必查，bsk 是外部工具，不随 Shadeling 分发）：① bsk CLI 在 PATH，检测 `command -v bsk`；未装则 `curl -fsSL https://raw.githubusercontent.com/Tencent/BrowserSkill/main/install.sh | sh`，装完 `bsk --version` 验证。② 浏览器扩展已装且连接（Chrome/Edge 店装 BrowserSkill 扩展，状态显示已连接）。③ `bsk status` 确认连接健康；异常 `bsk doctor` 诊断。扩展未连接不要假装完成。\n\n强制工作流：① `bsk session start` 捕获 4 字母 session id；② 后续命令带 --session <id>；③ 完成必 `bsk session stop <id>`（或 --all）关窗归还借用标签。绝不跳过 stop。\n\n常用命令（均带 --session）：navigate <url> / reload [--hard] / snapshot（看 @eN ref）/ click <ref或CSS> / fill <ref> --value \"文字\" / press Enter / screenshot [--ref @eN --out /tmp/x.png] / tab list|create|close|select / evaluate \"<JS>\" / request-help --prompt \"请完成验证码\"（遇验证码立即用，别暴力重试）/ status / doctor。不确定元素先 snapshot 看 ref 再操作，用 --json 拿结构化结果更稳。\n\n红线：不跳过 session stop；不长期借用用户个人标签；不在银行/支付/代币站用 evaluate 越权；遇验证码立即 request-help 交人；成功后不操控无关页面。只操作用户明确指定的网页与任务，结果照实汇报。"
+}

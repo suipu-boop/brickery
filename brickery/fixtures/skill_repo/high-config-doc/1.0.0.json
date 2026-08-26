@@ -5,13 +5,36 @@
   "summary": "用 DocWritePro 工具生成带复杂排版的 docx/xlsx/pptx（基于 editor_sdk 原生引擎），支持 commands 命令驱动模式（染色表格/图表/页眉页码/形状/主题配色）。",
   "description": "「文档生成」的高配版：安装时自动下载约 193MB 的 editor_sdk 原生引擎，运行时由客户端拉起本地引擎实例，把 Office 生成需求翻译为编辑器原生的 create -> 元素级编辑 -> save 工作流，排版保真度高于朴素版（纯 stdlib 拼装）。引擎为 MIT 许可，可再分发。支持 commands 命令驱动复杂排版。",
   "category": "文档处理",
-  "tags": ["office", "word", "excel", "ppt", "报告", "高配", "复杂排版"],
+  "tags": [
+    "office",
+    "word",
+    "excel",
+    "ppt",
+    "报告",
+    "高配",
+    "复杂排版"
+  ],
   "license": "MIT",
   "provides_tool": "DocWritePro",
-  "trigger": ["生成文档", "写word", "做ppt", "生成excel", "docwrite-pro", "生成报告", "做表格", "做幻灯片", "复杂排版", "高配文档"],
-  "binary_url": "http://localhost:8137/bin/editor_sdk",
+  "trigger": [
+    "生成文档",
+    "写word",
+    "做ppt",
+    "生成excel",
+    "docwrite-pro",
+    "生成报告",
+    "做表格",
+    "做幻灯片",
+    "复杂排版",
+    "高配文档"
+  ],
+  "binary_url": "https://github.com/suipu-boop/shadeling-bricks/releases/download/v1.0.0/editor_sdk",
   "binary_size": 202541440,
   "binary_sha256": "7d55e4c0840465dcd91fc1d865126b6e79321392cbb0d999b9d450d4f4b8bba2",
-  "binary_launch": {"port": 39199, "args": [], "startup_timeout": 15},
+  "binary_launch": {
+    "port": 39199,
+    "args": [],
+    "startup_timeout": 15
+  },
   "content": "你是高配文档助手，使用内置 DocWritePro 工具产出 Office 文档（docx/xlsx/pptx）。\n与朴素版 DocWrite 的区别：DocWritePro 走 editor_sdk 原生引擎，排版保真度更高，但首次安装需下载约 193MB 引擎（仅一次，之后本地离线可用）。\n\n两种用法：\n1) 简单模式（向后兼容）：用 sections（docx）/ sheets（xlsx）/ slides（pptx）数组。\n2) commands 命令驱动模式（docx/pptx 推荐，支持复杂排版）：传 commands=JSON 数组，每项 {op, ...}。\n\nWord 支持的 op：\n- heading {text, level(1-9), color?}\n- paragraph {text, color?, size?, bold?}\n- bullets {items:[...]} / numbering {items:[...]}\n- table {headers:[...], rows:[[...]], header_fill:颜色十六进制如 1F3864, borders:默认true}\n- image {path? 或 data?, w?, h?}\n- header {text} / page_number {position:right, format:decimal}\n- page_break\n\nPPT 支持的 op（每页一个 slide，首个为封面）：\n- slide {bg:颜色十六进制如 1F3864}\n- title {text, x, y, w, h, size?, color?, bold?}\n- text {text, x, y, w, h, size?, color?, fill?, bold?}\n- shape {shape_type:rect|roundRect|ellipse, x, y, w, h, fill, alpha?, border?}\n- chart {chart_type:clusteredColumn|pie, title, x, y, w, h, categories:[...], series:[{name, values:[...]}]}\n- page_number / image {path? 或 data?, x, y, w, h}\n\n流程：从用户需求提炼结构 → 选择 format → 优先用 commands 描述复杂排版（标题/染色表格/图表/页眉页码/形状/主题配色）→ 调用 DocWritePro(format=..., path=..., commands=...)。\n路径优先用用户指定位置（如 ~/Desktop/xxx.docx）；未指定时放到 ~/Desktop。\n不要臆造数据；表格/列表/图表内容严格来自用户提供的信息。"
 }
