@@ -268,9 +268,12 @@ app.mainMenu = mainMenu
 // 窗口
 let window = NSWindow(
     contentRect: NSRect(x: 0, y: 0, width: 920, height: 660),
-    styleMask: [.titled, .closable, .miniaturizable, .resizable],
+    styleMask: [.titled, .fullSizeContentView, .closable, .miniaturizable, .resizable],
     backing: .buffered, defer: false)
 window.title = appName
+// UI 重塑第 5 步：暗色底铺满窗口，消除顶部亮色标题栏割裂
+window.titlebarAppearsTransparent = true
+window.appearance = NSAppearance(named: .darkAqua)
 window.center()
 let webView = WKWebView(frame: window.contentView!.bounds)
 webView.autoresizingMask = [.width, .height]

@@ -50,133 +50,209 @@ PAGE_HTML = """<!DOCTYPE html>
 <title>随朴 · 引擎安装引导</title>
 <style>
   :root {
-    --bg: #0d1117; --panel: #161b22; --line: #2d333b;
-    --ink: #e6edf3; --dim: #8b949e; --accent: #ff7a18; --cyan: #39c5cf;
-    --grid: rgba(57, 197, 207, 0.06); --ok: #3fb950; --err: #f85149;
+    --bg: oklch(0.18 0.015 45);
+    --panel: oklch(0.22 0.018 45);
+    --panel2: oklch(0.26 0.02 45);
+    --ink: oklch(0.92 0.01 80);
+    --dim: oklch(0.68 0.02 60);
+    --accent: oklch(0.66 0.15 45);
+    --accent-strong: oklch(0.72 0.17 45);
+    --accent-soft: oklch(0.66 0.15 45 / 0.12);
+    --ok: oklch(0.72 0.12 145);
+    --err: oklch(0.62 0.16 25);
+    --warn: oklch(0.78 0.12 85);
+    --line: oklch(0.3 0.015 45);
+    /* —— 陶土工坊 · 设计 token —— */
+    --font-display: "Songti SC", "Songti TC", "New York", "Noto Serif SC", Georgia, serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Hiragino Sans GB", sans-serif;
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --inset-hi: inset 0 1px 0 oklch(1 0.02 60 / 0.05);
+    --inset-lo: inset 0 -1px 0 oklch(0 0 0 / 0.08);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background:
-      linear-gradient(var(--grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid) 1px, transparent 1px),
-      var(--bg);
-    background-size: 24px 24px;
+    background: var(--bg);
     color: var(--ink);
-    font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
-    min-height: 100vh; padding: 40px 20px;
+    font-family: var(--font-body);
+    font-size: 13px; line-height: 1.6;
+    min-height: 100vh; padding: clamp(24px, 5vw, 48px) clamp(16px, 4vw, 32px);
   }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em; }
   .wrap { max-width: 860px; margin: 0 auto; }
-  header { border-bottom: 2px solid var(--accent); padding-bottom: 14px; margin-bottom: 28px; }
-  header h1 { font-size: 22px; letter-spacing: 2px; }
+  header { position: relative; padding-bottom: 14px; margin-bottom: 28px; }
+  header::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
+  header h1 { font-family: var(--font-display); font-size: clamp(26px, 4.5vw, 38px); letter-spacing: 3px; font-weight: 800; font-variant-numeric: tabular-nums; }
   header h1 b { color: var(--accent); }
   header .sub { color: var(--dim); font-size: 12px; margin-top: 6px; }
   .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 6px; padding: 20px; margin-bottom: 20px;
-    box-shadow: 0 0 0 1px rgba(255,122,24,0.05);
+    background: var(--panel); border: none;
+    border-radius: 12px; padding: 22px; margin-bottom: 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 8px 28px rgba(0,0,0,.24);
+    transition: transform 180ms cubic-bezier(0.16,1,0.3,1), opacity 200ms ease-out;
   }
-  .card h2 { font-size: 14px; color: var(--cyan); margin-bottom: 14px; letter-spacing: 1px; }
-  .card h2::before { content: "▸ "; color: var(--accent); }
+  .card h2 { font-family: var(--font-display); font-size: 16px; color: var(--accent-strong); margin-bottom: 14px; letter-spacing: 1px; font-weight: 700; }
+  .card h2::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; background: var(--accent); border-radius: 2px; vertical-align: middle; }
   label { display: block; font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
-  input, select {
-    width: 100%; background: #0d1117; border: 1px solid var(--line);
-    color: var(--ink); padding: 8px 10px; border-radius: 4px;
+  input[type="text"], input[type="password"], input:not([type]), select, textarea {
+    width: 100%; background: oklch(0.16 0.012 45); border: 1px solid var(--line);
+    color: var(--ink); padding: 8px 10px; border-radius: 6px;
     font-family: inherit; font-size: 13px;
+    transition: border-color 150ms ease-out, box-shadow 150ms ease-out, background 150ms ease-out;
   }
-  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  input[type="text"]:hover, input:not([type]):hover, select:hover, textarea:hover { border-color: var(--line); }
+  input[type="text"]:focus, input[type="password"]:focus, input:not([type]):focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--accent); background: oklch(0.17 0.014 45);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  input:disabled, select:disabled { opacity: 0.45; cursor: not-allowed; }
   .row { display: flex; gap: 12px; }
   .row > div { flex: 1; }
   .btn {
-    display: inline-block; background: var(--accent); color: #0d1117;
-    border: none; padding: 10px 22px; border-radius: 4px;
+    display: inline-block; background: var(--accent); color: oklch(0.14 0.01 45);
+    border: 1px solid var(--accent-strong); padding: 10px 22px; border-radius: 8px;
     font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
     letter-spacing: 1px; margin-top: 14px;
+    transition: transform 120ms cubic-bezier(0.16,1,0.3,1), background 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out, opacity 120ms ease-out;
   }
-  .btn.ghost { background: transparent; color: var(--cyan); border: 1px solid var(--cyan); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn:hover { background: var(--accent-strong); color: oklch(0.96 0.01 80); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0) scale(0.98); }
+  .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+  .btn.ghost { background: transparent; color: var(--accent-strong); border: 1px solid var(--accent-strong); }
+  .btn.ghost:hover { background: var(--accent-soft); color: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .status { font-size: 12px; margin-top: 10px; min-height: 18px; }
   .status.ok { color: var(--ok); } .status.err { color: var(--err); }
   .model-item {
     display: flex; justify-content: space-between; align-items: center;
-    border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; margin-bottom: 8px;
+    background: var(--panel2); border: none; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.18);
   }
-  .model-item .m-name { font-size: 13px; }
+  .model-item .m-name { font-size: 13px; font-weight: 600; }
   .model-item .m-meta { font-size: 11px; color: var(--dim); margin-top: 3px; }
   .model-item .m-act { font-size: 12px; }
   .model-item .m-act button {
     background: transparent; border: 1px solid var(--accent); color: var(--accent);
-    padding: 5px 12px; border-radius: 3px; cursor: pointer; font-family: inherit; font-size: 12px;
+    padding: 5px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px;
+    transition: transform 120ms cubic-bezier(0.16,1,0.3,1), background 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out;
   }
+  .model-item .m-act button:hover { background: var(--accent-soft); }
+  .model-item .m-act button:active { transform: scale(0.96); }
+  .model-item .m-act button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
   .model-item .m-act button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .tag { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-left: 6px; }
-  .tag.installed { background: rgba(63,185,80,0.15); color: var(--ok); border: 1px solid var(--ok); }
-  .tag.dl { background: rgba(57,197,207,0.15); color: var(--cyan); border: 1px solid var(--cyan); }
+  .tag { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+  .tag.installed { background: oklch(0.72 0.12 145 / 0.14); color: var(--ok); border: 1px solid var(--ok); }
+  .tag.dl { background: oklch(0.78 0.12 85 / 0.15); color: var(--warn); border: 1px solid var(--warn); }
   .foot { color: var(--dim); font-size: 11px; text-align: center; margin-top: 30px; }
-  .steps { display: flex; gap: 8px; margin-bottom: 18px; }
+  .steps { display: flex; gap: 0; margin-bottom: 24px; align-items: center; }
   .step-ind {
-    flex: 1; text-align: center; padding: 8px 10px; border-radius: 6px;
-    background: var(--bg2); color: var(--dim); font-size: 12px; border: 1px solid var(--line);
+    flex: 1; text-align: center; padding: 8px 10px; border-radius: 10px;
+    background: transparent; color: var(--dim); font-size: 12px; border: none;
+    position: relative; font-variant-numeric: tabular-nums;
   }
-  .step-ind.active { background: rgba(57,197,207,0.12); color: var(--cyan); border-color: var(--cyan); }
+  .step-ind .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line);
+    color: var(--dim); font-size: 11px; margin-right: 6px; font-weight: 700;
+    transition: background 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+  }
+  .step-ind.active { color: var(--accent-strong); font-weight: 700; }
+  .step-ind.active .num { background: var(--accent); border-color: var(--accent); color: oklch(0.14 0.01 45); }
+  .step-link { flex: 0 0 18px; height: 1px; background: var(--line); opacity: .6; }
   .nav { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
-  .nav .btn { min-width: 96px; }
+  .nav .btn { min-width: 96px; margin-top: 0; }
   .pickrow { display: flex; gap: 8px; align-items: center; }
   .pickrow input { flex: 1; }
-  .pick { white-space: nowrap; }
-  .summary { background: var(--bg2); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; margin-top: 6px; }
+  .pick { white-space: nowrap; margin-top: 0; }
+  .summary { background: oklch(0.16 0.012 45); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-top: 6px; }
   .sum-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13px; }
   .sum-row span { color: var(--dim); }
   .sum-row b { font-weight: 600; word-break: break-all; text-align: right; }
+  .engines-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .engines-2col { grid-template-columns: 1fr; } }
+  .zone { border-radius: 12px; padding: 16px; background: var(--panel2); box-shadow: 0 1px 2px rgba(0,0,0,.22); }
+  .zone-title { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 15px; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .zone-title .znum { font-size: 11px; color: var(--accent); font-weight: 700; }
+  .zone-sub { font-size: 11px; color: var(--dim); margin-bottom: 10px; }
+  .conflict-note {
+    display: none; margin-top: 10px; padding: 8px 12px; border-radius: 8px;
+    background: oklch(0.78 0.12 85 / 0.12); border: 1px solid oklch(0.78 0.12 85 / 0.35); font-size: 12px; color: var(--warn);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>随朴 <b>ENGINE</b> · 安装引导</h1>
-    <div class="sub">推理引擎配置向导 — API 首选 / 本地 GGUF 兜底 · 配置仅存本机</div>
+    <div class="sub">推理引擎配置向导 — 主引擎负责聊天与推理 · 幕后引擎负责规划 / 记忆 / 语义检索 · 配置仅存本机</div>
   </header>
 
   <div class="steps">
-    <div class="step-ind active" data-step="1">1 · 推理后端</div>
-    <div class="step-ind" data-step="2">2 · 数据与备份</div>
-    <div class="step-ind" data-step="3">3 · 认识彼此</div>
-    <div class="step-ind" data-step="4">4 · 完成</div>
+    <div class="step-ind active" data-step="1"><span class="num">1</span>引擎配置</div><div class="step-link"></div>
+    <div class="step-ind" data-step="2"><span class="num">2</span>数据与备份</div><div class="step-link"></div>
+    <div class="step-ind" data-step="3"><span class="num">3</span>认识彼此</div><div class="step-link"></div>
+    <div class="step-ind" data-step="4"><span class="num">4</span>完成</div>
   </div>
 
   <div class="card step-panel" id="step1">
-    <h2>第一步 · 选择推理后端</h2>
-    <label>后端模式</label>
-    <select id="backend">
-      <option value="api">API（首选，质量最高）</option>
-      <option value="local">本地 GGUF（隐私兜底）</option>
-    </select>
-    <div id="apiPanel">
-      <label>服务商预设（可编辑，点选即填入模板）</label>
-      <select id="preset"></select>
-      <div class="hint" id="presetHint" style="font-size:11px;color:var(--dim);margin-top:4px"></div>
-      <div class="row" style="margin-top:6px">
-        <button class="btn ghost" type="button" onclick="enterPlanMode('coding')">＋ 自定义 Coding Plan</button>
-        <button class="btn ghost" type="button" onclick="enterPlanMode('custom')">＋ 其他厂商普通 API</button>
+    <h2>第一步 · 引擎配置</h2>
+    <div class="zone">
+      <div class="zone-title"><span class="znum">ENGINE · 01</span>主引擎 · 聊天与推理</div>
+      <div class="zone-sub">你问我答、写文件、干活都走它。API 质量最高；本地大模型（内存充足时）离线可用。</div>
+      <label>主引擎方案</label>
+      <select id="backend">
+        <option value="api">API（首选，质量最高）</option>
+        <option value="local">本地大模型（内存充足时）</option>
+      </select>
+      <div id="apiPanel">
+        <label>服务商预设（可编辑，点选即填入模板）</label>
+        <select id="preset"></select>
+        <div class="hint" id="presetHint" style="font-size:11px;color:var(--dim);margin-top:4px"></div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn ghost" type="button" onclick="enterPlanMode('coding')">＋ 自定义 Coding Plan</button>
+          <button class="btn ghost" type="button" onclick="enterPlanMode('custom')">＋ 其他厂商普通 API</button>
+        </div>
+        <div id="codingHintPanel" style="display:none;margin-top:8px;padding:8px;border-radius:8px;background:oklch(0.66 0.15 45 / 0.10);font-size:12px;color:var(--dim)">
+          Coding Plan 是各厂商的独立额度，Base URL 与普通 API 不同——填错（如用了普通 /v3 地址）会走普通额度，且用不掉 Coding Plan。
+          <div style="margin-top:4px">示例 · 火山方舟 Coding Plan：<code style="user-select:all">https://ark.cn-beijing.volces.com/api/coding/v3</code></div>
+          <div>示例 · 腾讯混元 Coding Plan（免费）：<code style="user-select:all">https://api.lkeap.cloud.tencent.com/coding/v3</code></div>
+        </div>
+        <div class="row">
+          <div><label>API URL</label><input id="api_url" placeholder="https://..."></div>
+          <div><label>模型名</label><input id="api_model" placeholder="model-id"></div>
+        </div>
+        <label>API Key（必须手填，仅存本机）</label>
+        <input id="api_key" type="password" placeholder="sk-...">
+        <label>显示名称</label>
+        <input id="api_name" placeholder="如：DeepSeek">
       </div>
-      <div id="codingHintPanel" style="display:none;margin-top:8px;padding:8px;border-radius:8px;background:rgba(99,102,241,.06);font-size:12px;color:var(--dim)">
-        Coding Plan 是各厂商的独立额度，Base URL 与普通 API 不同——填错（如用了普通 /v3 地址）会走普通额度，且用不掉 Coding Plan。
-        <div style="margin-top:4px">示例 · 火山方舟 Coding Plan：<code style="user-select:all">https://ark.cn-beijing.volces.com/api/coding/v3</code></div>
-        <div>示例 · 腾讯混元 Coding Plan（免费）：<code style="user-select:all">https://api.lkeap.cloud.tencent.com/coding/v3</code></div>
+      <div id="localPanel" style="display:none">
+        <label>本地模型文件（GGUF，相对 models_root 或绝对路径）</label>
+        <input id="local_model" placeholder="如 qwen3.5-4b-q4.gguf">
+        <div id="modelList" style="margin-top:12px"></div>
       </div>
-      <div class="row">
-        <div><label>API URL</label><input id="api_url" placeholder="https://..."></div>
-        <div><label>模型名</label><input id="api_model" placeholder="model-id"></div>
-      </div>
-      <label>API Key（必须手填，仅存本机）</label>
-      <input id="api_key" type="password" placeholder="sk-...">
-      <label>显示名称</label>
-      <input id="api_name" placeholder="如：DeepSeek">
     </div>
-    <div id="localPanel" style="display:none">
-      <label>本地模型文件（GGUF，相对 models_root 或绝对路径）</label>
-      <input id="local_model" placeholder="如 qwen3.5-4b-q4.gguf">
-      <div id="modelList" style="margin-top:12px"></div>
+
+    <div style="margin-top:16px">
+      <div class="zone">
+        <div class="zone-title"><span class="znum">ENGINE · 02</span>幕后引擎 · 规划 / 记忆 / 语义检索</div>
+        <div class="zone-sub">夜间整理、记忆归纳、语义检索等后台任务不走对话额度；可常驻本地小模型，省额度、保隐私。</div>
+        <label>后台任务引擎</label>
+        <select id="bgModel">
+          <option value="follow">跟随主引擎（默认）</option>
+          <option value="local">本地小模型（隐私优先）</option>
+        </select>
+        <div class="hint" style="font-size:11px;color:var(--dim);margin-top:4px">选「本地小模型」时，夜间整理、检索嵌入等后台任务优先用本地 GGUF，不消耗 API 额度。</div>
+        <div id="bgLocalInner">
+          <label>本地小模型（建议 1–8B，GGUF）</label>
+          <div id="bgModelList" style="margin-top:4px"></div>
+        </div>
+      </div>
     </div>
+
     <div class="nav">
       <button class="btn" onclick="goStep(2)">下一步</button>
     </div>
@@ -275,7 +351,9 @@ async function init() {
     if (cfg.config.api_model) $("api_model").value = cfg.config.api_model;
     if (cfg.config.api_name) $("api_name").value = cfg.config.api_name;
     if (cfg.config.local_model) $("local_model").value = cfg.config.local_model;
+    if (cfg.config.nightly && cfg.config.nightly.use_local_model) $("bgModel").value = "local";
     toggleBackend();
+    updateBgSection();
   }
   // 预填固定核身份（认识彼此页）：已配置过则回显
   try {
@@ -335,9 +413,15 @@ function toggleBackend() {
   $("localPanel").style.display = api ? "none" : "";
 }
 
-async function loadModels() {
-  const data = await jget("/api/models");
-  const box = $("modelList");
+/* 幕后引擎 · 本地小模型选择区：选「本地小模型」时展示模型下载列表 */
+function updateBgSection() {
+  const local = $("bgModel").value === "local";
+  const inner = $("bgLocalInner");
+  if (inner) inner.style.display = local ? "" : "none";
+}
+$("bgModel").onchange = updateBgSection;
+
+function renderModelList(box, data) {
   box.innerHTML = "";
   (data.models || []).forEach(m => {
     const div = document.createElement("div");
@@ -354,6 +438,12 @@ async function loadModels() {
   box.querySelectorAll("button").forEach(b => {
     b.onclick = () => downloadModel(b.dataset.id);
   });
+}
+
+async function loadModels() {
+  const data = await jget("/api/models");
+  const box = $("modelList"); if (box) renderModelList(box, data);
+  const bg = $("bgModelList"); if (bg) renderModelList(bg, data);
 }
 
 async function downloadModel(id) {
@@ -376,11 +466,12 @@ function goStep(n) {
 
 function renderSummary() {
   const rows = [
-    ["后端模式", $("backend").value === "api" ? "API" : "本地 GGUF"],
+    ["后端模式", $("backend").value === "api" ? "API" : "本地大模型"],
     ["模式", planMode === "coding" ? "Coding Plan" : planMode === "custom" ? "自定义 API" : "预设"],
     ["服务商", $("api_name").value || "—"],
     ["API URL", $("api_url").value || "—"],
     ["模型", $("api_model").value || $("local_model").value || "—"],
+    ["幕后引擎", $("bgModel").value === "local" ? "本地小模型" : "跟随主引擎"],
     ["备份文件夹", $("backup_dir").value || "—"],
     ["产出文件夹", $("output_dir").value || "—"],
     ["AI 名字", $("assistant_name").value.trim() || "Brickery（默认）"],
@@ -412,6 +503,7 @@ $("saveBtn").onclick = async () => {
     api_model: $("api_model").value.trim(),
     api_name: $("api_name").value.trim(),
     local_model: $("local_model").value.trim(),
+    nightly: { use_local_model: $("bgModel").value === "local" },
     backup_dir: $("backup_dir").value.trim(),
     output_dir: $("output_dir").value.trim(),
   };
@@ -532,6 +624,10 @@ class _Handler(BaseHTTPRequestHandler):
                     "api_model": cfg.engine.api_model,
                     "api_name": cfg.engine.api_name,
                     "local_model": cfg.engine.local_model,
+                    "nightly": {
+                        "enabled": bool(cfg.nightly.enabled),
+                        "use_local_model": bool(cfg.nightly.use_local_model),
+                    },
                 },
             })
         elif self.path == "/api/identity":
@@ -596,6 +692,10 @@ class _Handler(BaseHTTPRequestHandler):
         eng.api_model = data.get("api_model", eng.api_model)
         eng.api_name = data.get("api_name", eng.api_name)
         eng.local_model = data.get("local_model", eng.local_model)
+        # 幕后引擎：本地小模型（规划/记忆/语义检索用），不随主引擎后端切换
+        _nightly = data.get("nightly") or {}
+        if "use_local_model" in _nightly:
+            cfg.nightly.use_local_model = bool(_nightly["use_local_model"])
         # 同步激活 profile：ipc/status 检测读 active profile，不同步会误报"API 未配置"
         for p in (cfg.profiles or []):
             if p.get("id") == cfg.active_profile_id:
