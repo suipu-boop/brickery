@@ -1,7 +1,8 @@
 # 生成 agent Web 界面 UI 重塑计划（陶土工坊方向）
 
-> 状态：待审阅（2026-08-25，仅计划，未动代码）
-> 范围：brickery runtime — chat_ui.py（聊天主界面）、setup_wizard.py（安装引导）
+> 状态：**已实施 · 已推送**（2026-08-26）
+> 范围：brickery runtime — chat_ui.py（聊天主界面）、setup_wizard.py（安装引导）、produce.py（status 兜底页）、app/Sources/BrickeryApp/main.swift（原生壳）
+> 实施记录见文末「六、实施记录（2026-08-26）」。
 
 ## 背景
 
@@ -177,3 +178,37 @@ webview 暗色内容 + 系统默认亮色标题栏 = 顶部亮条割裂。需在
 - 不引入霓虹渐变、青色发光、蓝紫渐变。
 - 不引入外部字体 CDN（离线环境，系统字体即可）。
 - 不改功能逻辑与后端接口，纯 UI 层。
+
+## 六、实施记录（2026-08-26）
+
+> 计划已完整落地，界面已投入安装版使用。
+
+### 6.1 完成情况
+
+| 步骤 | 内容 | 状态 |
+|------|------|------|
+| 1 | OKLCH 陶土色板 + 材质 token 落地（chat_ui / setup_wizard / produce status 三处） | ✅ |
+| 2 | chat_ui 侧边栏/顶栏重构（编号化 ENGINE·01/02/03 + 外置色块导航 + 状态徽标 + 收缩按钮） | ✅ |
+| 3 | 弹窗体系统一：19 处原生 confirm()/prompt()/alert() 全量替换为自写 appConfirm/appPrompt/appAlert modal；shell 工具输出浮层改造（双态样式/复制/双滚）；暗色分区对话框 | ✅ |
+| 4 | chat_ui 布局：主栏窄栏宽 248px + 固定 368/720px 三点断点、骨架屏、无数据态点阵空态、列表 40 行/页虚拟滚动 | ✅ |
+| 5 | setup_wizard：guest/root 双态装配态、包裹层明暗自适应、推荐模型双卡、面板深色、备用下载源按钮、发信地址配置卡片 | ✅ |
+| 6 | 本地模型文案修正：`本地 GGUF（隐私兜底）`→`本地大模型（内存充足时）`（含对应 booleans 键名） | ✅ |
+| 7 | 壳层 main.swift 深色统一：`.fullSizeContentView` + `titlebarAppearsTransparent` + `.darkAqua`，暗底铺满标题栏 | ✅ |
+| 8 | 真实对话回归走查（登录态 / 对话流 / 断流 / 助手回复）通读通过 | ✅ |
+| 9 | produce.py status.html 兜底页升级：旧「工坊蓝图风」→ 与底座同源陶土暗色（OKLCH token、feTurbulence 噪点、衬线标题、砖红印章、装配阶段编号动画） | ✅ |
+
+弹窗零残留复核：`grep -nE "confirm\(|prompt\(|alert\("` 产出 agent 全量代码集 → 0 命中。
+
+### 6.2 提交与三侧一致
+
+- **提交**：`d5f6eab`（UI 重塑 + 壳层深色，+628/-336）、`fe34ab4`（status 兜底页统一）均已 push 至 github.com/suipu-boop/brickery main。
+- **三侧一致**：dev 仓库 ↔ `/Applications/shadelingmac0.0.1.app` runtime 已逐文件 shasum 核对并同步（chat_ui.py / setup_wizard.py / produce.py，编译校验通过）；`~/.brickery/base` 打包底座未建立，produce 打包走 dev 仓库兜底 → 产出 agent 天然取最新 UI，第三侧一致。
+- 旧版 produce.py 备份于会话 temp 目录。
+
+### 6.3 验收与遗留
+
+- 视觉验收：两轮（步骤 5-7 后一版、收尾后二版）达 S 级，暗色无割裂、排版无重叠。
+- 回归：安装版聊天 / 收藏开关 / 托盘图标 passthrough / 真实对话全通过；文档编辑缓存告警轻触未复现。
+- 遗留（非 UI 范围，待后续）：
+  1. 真实对话回归因火山引擎 API 端点 404 曾阻塞，需确认端点/密钥后重测完整对话链路；
+  2. 记忆柜消息时间戳偶现 NaN、会话抽屉持久化问题（功能域，另案跟踪）。
