@@ -372,55 +372,72 @@ def _status_page(name: str, version: str, port: int) -> str:
 <title>__NAME__ · 运行中</title>
 <style>
   :root {
-    --paper: #f2ecdf; --card: #faf6ec; --line: #d6cbb4; --line-strong: #b8a98c;
-    --ink: #2b2620; --ink-soft: #6b6152; --ink-faint: #9a8f7c;
-    --amber: #b45309; --vermilion: #a63a2a; --ok: #3f6b3f;
-    --shadow: 0 1px 3px rgba(80,60,30,.12), 0 4px 14px rgba(80,60,30,.08);
-    --radius: 10px;
+    /* —— 陶土工坊 · OKLCH 色板（与底座 chat_ui/setup_wizard 同源） —— */
+    --bg: oklch(0.21 0.025 30);          /* 深陶土黑底 */
+    --panel: oklch(0.26 0.028 32);       /* 卡片面 */
+    --panel2: oklch(0.30 0.030 33);      /* 次级面 */
+    --line: oklch(0.40 0.035 34);        /* 陶线 */
+    --ink: oklch(0.97 0.015 75);         /* 暖白字 */
+    --dim: oklch(0.72 0.03 70);          /* 陶灰 */
+    --accent: oklch(0.66 0.16 42);       /* 陶土砖红主色 */
+    --green: oklch(0.78 0.13 130);
+    /* —— 字体体系 —— */
+    --font-display: "Songti SC", "Songti TC", "New York", "Noto Serif SC", Georgia, serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Segoe UI", sans-serif;
+    /* —— 陶土材质（压印光影） —— */
+    --inset-hi: inset 0 1px 0 oklch(1 0.02 60 / 0.05);
+    --inset-lo: inset 0 -1px 0 oklch(0 0 0 / 0.08);
+    --shadow-soft: 0 1px 2px oklch(0.12 0.02 30 / 0.2), 0 10px 28px oklch(0.12 0.02 30 / 0.14), var(--inset-hi), var(--inset-lo);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, "PingFang SC", "Songti SC", sans-serif;
-    background:
-      radial-gradient(circle at 12% 8%, rgba(180,120,40,.06), transparent 40%),
-      radial-gradient(circle at 88% 90%, rgba(166,58,42,.05), transparent 40%),
-      var(--paper);
-    color: var(--ink); font-size: 14px; line-height: 1.6;
+    font-family: var(--font-body); color: var(--ink); font-size: 14px; line-height: 1.6;
     min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+    background-color: var(--bg);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='0.5'/></svg>");
+  }
+  .stamp {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; margin-bottom: 16px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel2); color: var(--accent);
+    font-family: var(--font-display); font-size: 20px; font-weight: 800;
+    box-shadow: var(--inset-hi), var(--inset-lo);
   }
   .card {
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: var(--radius); box-shadow: var(--shadow);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow-soft);
     max-width: 520px; width: 100%; padding: 32px 36px;
   }
   .badge {
     display: inline-flex; align-items: center; gap: 8px;
-    background: #eef3ea; color: var(--ok); border: 1px solid #c9d8c4;
-    border-radius: 20px; padding: 4px 14px; font-size: 13px; font-weight: 700;
+    background: var(--accent); color: var(--bg); border-radius: 20px;
+    padding: 4px 14px; font-size: 13px; font-weight: 700;
   }
-  .badge .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); }
-  h1 { font-size: 24px; font-weight: 800; margin: 18px 0 4px; letter-spacing: .5px; }
-  h1 .accent { color: var(--vermilion); }
-  .ver { color: var(--ink-faint); font-size: 13px; margin-bottom: 22px; }
+  .badge .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bg); }
+  h1 { font-family: var(--font-display); font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: .5px; }
+  h1 .accent { color: var(--accent); }
+  .ver { color: var(--dim); font-size: 13px; margin-bottom: 22px; }
   .row {
     display: flex; justify-content: space-between; gap: 16px;
     padding: 10px 0; border-top: 1px dashed var(--line); font-size: 13px;
   }
-  .row .k { color: var(--ink-soft); white-space: nowrap; }
+  .row .k { color: var(--dim); white-space: nowrap; }
   .row .v { color: var(--ink); font-family: ui-monospace, Menlo, monospace; word-break: break-all; text-align: right; }
   .tip {
-    margin-top: 20px; padding: 12px 14px; background: var(--paper);
+    margin-top: 20px; padding: 12px 14px; background: var(--panel2);
     border: 1px solid var(--line); border-radius: 8px;
-    color: var(--ink-soft); font-size: 12.5px;
+    color: var(--dim); font-size: 12.5px;
   }
   .tip code {
-    font-family: ui-monospace, Menlo, monospace; background: #e9e1cf;
+    font-family: ui-monospace, Menlo, monospace; background: oklch(0.18 0.022 30);
     padding: 1px 6px; border-radius: 4px; color: var(--ink);
   }
 </style>
 </head>
 <body>
   <div class="card">
+    <span class="stamp">砖</span>
     <span class="badge"><span class="dot"></span>运行中</span>
     <h1>__NAME__ <span class="accent">·</span> 已启动</h1>
     <div class="ver">版本 __VERSION__ · Brickery 独立 agent</div>
