@@ -32,7 +32,7 @@ PORT = 18766
 
 # 八家 API 预设模板：url 为可编辑默认值，key 必须用户手填
 API_PRESETS: List[Dict] = [
-    {"name": "火山方舟", "url": "https://ark.cn-beijing.volces.com/api/v3", "model": "doubao-seed-2.1-pro-260628", "key": ""},
+    {"name": "火山方舟", "url": "https://ark.cn-beijing.volces.com/api/coding/v3", "model": "ark-code-latest", "key": ""},
     {"name": "腾讯混元", "url": "https://api.hunyuan.cloud.tencent.com/v1", "model": "hunyuan-turbos-latest", "key": ""},
     {"name": "DeepSeek", "url": "https://api.deepseek.com/v1", "model": "deepseek-v4-flash", "key": ""},
     {"name": "通义千问", "url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen3.8-max", "key": ""},

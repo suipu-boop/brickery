@@ -78,7 +78,7 @@ IPC_ALLOWED_METHODS = {
     "drawer_list", "drawer_get", "drawer_create", "drawer_update",
     "drawer_delete", "node_add", "node_update", "node_delete",
     "edge_add", "edge_delete", "recordbook_sync", "recordbook_get",
-    "explain_node", "drawer_chat", "recommend_detect",
+    "explain_node", "drawer_chat", "drawer_history", "recommend_detect",
     # 文件
     "file_index", "file_update", "file_remove", "file_search",
     # 备份恢复
@@ -623,7 +623,13 @@ PAGE_HTML = """<!DOCTYPE html>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const fmtTime = ts => { if (!ts) return ""; const d = new Date(ts * 1000); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0") + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); };
+const fmtTime = ts => {
+  if (ts === undefined || ts === null || ts === "") return "";
+  let d = new Date(typeof ts === "number" ? ts * 1000 : ts);
+  if (isNaN(d.getTime())) { const n = Number(ts); if (!isNaN(n)) d = new Date(n * 1000); }
+  if (isNaN(d.getTime())) return "";
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0") + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+};
 
 /* ================= IPC 桥接 ================= */
 async function ipc(method, params) {
@@ -1615,33 +1621,47 @@ async function saveRecordbook(did) {
 
 /* ---- E5 项目独立聊天 ---- */
 let drawerChatHistory = [];
-function renderDrawerChat(d) {
+let drawerChatSid = "";
+async function renderDrawerChat(d) {
   const box = $("drawerChatBox");
   if (!box) return;
+  const did = d.drawer_id || d.id;
   drawerChatHistory = [];
+  drawerChatSid = "";
+  // 拉取该抽屉已持久化的项目聊天历史（重启后不回丢）
+  try {
+    const r = await ipc("drawer_history", { drawer_id: did });
+    const items = r.items || [];
+    drawerChatHistory = items.map(m => ({ role: m.role, text: m.text, ts: m.ts }));
+    if (r.session_id) drawerChatSid = r.session_id;
+  } catch (e) {}
+  const initial = drawerChatHistory.length
+    ? drawerChatHistory.map(m => (m.role === "user" ? "你：" : "Brickery：") + m.text).join("\\n")
+    : "（项目聊天，反馈留在工作台内）";
   box.innerHTML = `
-    <div id="dcMsgs" class="pre" style="max-height:220px;overflow:auto;margin-bottom:8px">（项目聊天，反馈留在工作台内）</div>
+    <div id="dcMsgs" class="pre" style="max-height:220px;overflow:auto;margin-bottom:8px">${initial}</div>
     <div class="row">
       <input id="dcInput" placeholder="输入项目消息，Enter 发送">
-      <button class="btn primary" onclick="sendDrawerChat('${esc(d.drawer_id || d.id)}')">发送</button>
+      <button class="btn primary" onclick="sendDrawerChat('${esc(did)}')">发送</button>
     </div>`;
   const inp = $("dcInput");
-  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); sendDrawerChat(d.drawer_id || d.id); } });
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); sendDrawerChat(did); } });
 }
 async function sendDrawerChat(did) {
   const inp = $("dcInput");
   const msg = inp ? inp.value.trim() : "";
   if (!msg) return;
   const box = $("dcMsgs");
-  drawerChatHistory.push({ role: "user", text: msg });
+  drawerChatHistory.push({ role: "user", text: msg, ts: Date.now() / 1000 });
   if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "Brickery：") + m.text).join("\\n");
   if (inp) inp.value = "";
   try {
-    const r = await ipc("drawer_chat", { drawer_id: did, message: msg });
-    drawerChatHistory.push({ role: "assistant", text: r.reply || "" });
+    const r = await ipc("drawer_chat", { drawer_id: did, message: msg, session_id: drawerChatSid || undefined });
+    if (r.session_id) drawerChatSid = r.session_id;
+    drawerChatHistory.push({ role: "assistant", text: r.reply || "", ts: Date.now() / 1000 });
     if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "Brickery：") + m.text).join("\\n");
   } catch (e) {
-    drawerChatHistory.push({ role: "assistant", text: "（项目聊天失败：" + e.message + "）" });
+    drawerChatHistory.push({ role: "assistant", text: "（项目聊天失败：" + e.message + "）", ts: Date.now() / 1000 });
     if (box) box.textContent = drawerChatHistory.map(m => (m.role === "user" ? "你：" : "Brickery：") + m.text).join("\\n");
   }
 }
@@ -2001,7 +2021,7 @@ function renderTabGeneral() {
 
 /* ---- 模型 ---- */
 const VENDOR_TEMPLATES = {
-  volc:      { name: "火山方舟", url: "https://ark.cn-beijing.volces.com/api/v3", model: "deepseek-v3" },
+  volc:      { name: "火山方舟", url: "https://ark.cn-beijing.volces.com/api/coding/v3", model: "ark-code-latest" },
   deepseek:  { name: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat" },
   qwen:      { name: "通义千问", url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
   zhipu:     { name: "智谱", url: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },

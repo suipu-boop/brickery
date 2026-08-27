@@ -370,7 +370,9 @@ class ApiEngine:
         401/403=密钥或鉴权错误、429=限流/额度、5xx=服务端、超时/不可达=网络。
         同时打日志（host/状态码/耗时），便于「思考后无响应」类问题排查。
         """
-        url = self.api_url + "/chat/completions"
+        url = self.api_url
+        if not url.endswith("/chat/completions"):
+            url += "/chat/completions"
         host = self.api_url
         model = self.api_model or "默认"
         t0 = time.perf_counter()
@@ -510,7 +512,9 @@ class ApiEngine:
         - 末尾 [DONE] 或连接结束即停止；usage 从最后一块（choices 为空）捕获。
         - 任何网络/HTTP 失败与 _request_json 同口径分类，抛带上下文的 RuntimeError。
         """
-        url = self.api_url + "/chat/completions"
+        url = self.api_url
+        if not url.endswith("/chat/completions"):
+            url += "/chat/completions"
         host = self.api_url
         model = self.api_model or "默认"
         t0 = time.perf_counter()

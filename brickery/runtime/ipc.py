@@ -1911,6 +1911,16 @@ class IpcServer:
         return {"reply": reply, "session_id": sid,
                 "used_tools": loop.last_tools, "used_skills": loop.last_skills}
 
+    def _h_drawer_history(self, params):
+        """项目抽屉聊天历史回读：与 drawer_chat 同一固定会话抽屉命名空间，
+        确保重启后前端能取回已持久化的消息。"""
+        drawer_id = params.get("drawer_id", "")
+        if not drawer_id:
+            return {"items": []}
+        sid = f"drawer_{drawer_id}"
+        hist = self.sessions.history(sid, limit=params.get("limit", 200))
+        return {"items": hist, "session_id": sid}
+
     def _h_recommend_detect(self, params):
         return {"result": self.memory.detect_recommendation(
             params.get("text", ""))}
@@ -2237,7 +2247,9 @@ class IpcServer:
         分类意图：让用户在「填了但连不通」时立刻看到是 key 失效 / 限速 / 网络，
         而非静默失败。超时短（8s）以免拖慢诊断。
         """
-        url = eng.api_url.rstrip("/") + "/chat/completions"
+        url = eng.api_url.rstrip("/")
+        if not url.endswith("/chat/completions"):
+            url += "/chat/completions"
         payload = json.dumps({
             "model": eng.api_model or "gpt-4o-mini",
             "messages": [{"role": "user", "content": "ping"}],
