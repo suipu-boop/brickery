@@ -161,9 +161,11 @@ class IpcServer:
                  models_root: Optional[Path] = None,
                  local_engine: Optional[Any] = None,
                  api_engine: Optional[Any] = None,
-                 build_real_engines: bool = True):
+                 build_real_engines: bool = True,
+                 app_resources: Optional[Path] = None):
         self.host = host
         self.port = port
+        self._app_resources = app_resources
         self.config: Config = load_config(home=home, models_root=models_root)
         if self.config.memory_enabled:
             self.memory = MemorySystem(engine=self._make_smol_engine())
