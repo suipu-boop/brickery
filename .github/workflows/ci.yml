@@ -15,3 +15,14 @@ jobs:
           python-version: '3.11'
       - name: 内核导入冒烟
         run: python -c "import brickery; print('brickery import OK')"
+
+  alignment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 一致性校验（仓库层 + 远端层）
+        run: |
+          bash -n scripts/check_alignment.sh
+          bash scripts/check_alignment.sh --scope=repo

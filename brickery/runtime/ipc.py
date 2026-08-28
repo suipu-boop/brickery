@@ -212,6 +212,9 @@ class IpcServer:
             notifier=self._on_task_done)
         self._register_spawn_tools()
         self.scheduler.start()
+        # §auto-follow-single-source：启动早期低优先级后台触发 vault 同步与
+        # 自检更新检查（不阻塞启动、失败静默降级；本进程始终加载现有代码）。
+        self._start_follow_tasks()
         self.skills = SkillRegistry()
         # 内置技能（随安装包分发，先于用户清单载入；同名技能以用户 skills.json 为准）
         load_builtin_skills(self.skills, self.config.home)
@@ -256,6 +259,59 @@ class IpcServer:
         eng = self.config.engine
         if not (eng.api_url and eng.api_key) and not eng.local_model:
             logger.info("引擎未配置：请打开安装引导 http://127.0.0.1:18766 完成配置")
+
+    def _start_follow_tasks(self) -> None:
+        """启动早期低优先级后台跟随任务（vault 同步 + 自检更新检查）。
+
+        均不阻塞启动，失败静默降级（仅日志）。本进程始终加载现有代码；
+        自检更新即便发现新版本也只提示/落盘，下次启动生效（pending_restart）。
+        """
+        home = self.config.home
+
+        def _run_vault_sync() -> None:
+            try:
+                from .vault_sync import sync_vault
+                rep = sync_vault(
+                    home,
+                    dry_run=os.environ.get("BRICKERY_VAULT_SYNC_DRYRUN") == "1")
+                logger.info("[vault-sync] %s", rep.summary())
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[vault-sync] 失败静默降级：%s", e)
+
+        def _run_self_update_check() -> None:
+            try:
+                from .self_update import check_for_update
+                rt = self._runtime_root()
+                info = check_for_update(rt, home)
+                if info.error:
+                    logger.info("[self-update] 检查跳过：%s", info.error)
+                    return
+                if info.update_available:
+                    logger.info(
+                        "[self-update] 发现新版本 %s（当前 %s），等待授权后落地",
+                        info.remote_sha[:12], info.local_sha[:12])
+                else:
+                    logger.info("[self-update] 已是最新（%s）",
+                                info.local_sha[:12])
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[self-update] 检查失败静默降级：%s", e)
+
+        threading.Thread(target=_run_vault_sync, daemon=True,
+                         name="vault-sync").start()
+        threading.Thread(target=_run_self_update_check, daemon=True,
+                         name="self-update-check").start()
+
+    def _runtime_root(self) -> Optional[Path]:
+        """定位 runtime 根：优先 --app-resources，其次内嵌解释器推导。"""
+        if getattr(self, "_app_resources", None):
+            cand = Path(self._app_resources) / "brickery-runtime"
+            if cand.is_dir():
+                return cand
+        try:
+            from .self_update import runtime_root_from_executable
+            return runtime_root_from_executable()
+        except Exception:  # noqa: BLE001
+            return None
 
     def _activate_bricks(self) -> None:
         """启动时扫描 home/bricks 下各积木，按形态激活注册进内核。
@@ -3118,7 +3174,8 @@ def main(argv: Optional[list] = None) -> int:
     if app_resources is not None:
         home = home or paths.get_home()
         _ensure_agent_home(home, app_resources)
-    srv = IpcServer(host=args.host, port=args.port, home=home)
+    srv = IpcServer(host=args.host, port=args.port, home=home,
+                    app_resources=app_resources)
     srv.start()
     print(f"[Brickery IPC] 监听 {srv.host}:{srv.port}", flush=True)
     # 自动拉起 daemon（记忆整理后台任务）：保证桌面 App 打开即用，
