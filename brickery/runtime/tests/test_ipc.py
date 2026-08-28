@@ -215,5 +215,68 @@ class OpenContextTriggerTest(RuntimeTestCase):
             fake.run.call_args.kwargs.get("open_context_text"))
 
 
+class IpcUiExtensionTest(RuntimeTestCase):
+    """Step1：积木 UI 注册扩展的 IPC 数据接口（skill_list 透传 / skill_views / demo 示例）。"""
+
+    def setUp(self):
+        super().setUp()
+        self.srv = IpcServer(host="127.0.0.1", port=0,
+                             home=self.home, models_root=self.models,
+                             local_engine=_FakeEngine())
+        self.srv.start()
+        for _ in range(50):
+            if self.srv.port:
+                break
+            time.sleep(0.02)
+        from brickery.runtime.skills import Skill
+        # 带 UI 声明的启用积木
+        self.srv.skills.register(Skill(
+            name="ppt-studio", trigger=["ppt"], content="导出 PPT",
+            summary="全功能 PPT 生成积木",
+            buttons=[{"label": "运行演示", "action": "demo_button", "args": {"a": 1}},
+                     {"label": "进工作台", "action": "ppt_enter", "view": "ppt_studio"}],
+            views=[{"nav_title": "PPT 工作台", "view_id": "ppt_studio",
+                    "handler": "ppt_enter", "icon": "work"}],
+        ))
+        # 声明了 views 但被禁用的积木：不应出现在 skill_views
+        self.srv.skills.register(Skill(
+            name="disabled-view", trigger=["dv"], content="x",
+            views=[{"nav_title": "禁用视图", "view_id": "dv_view", "handler": "ppt_enter"}],
+            disabled=True,
+        ))
+
+    def tearDown(self):
+        self.srv.stop()
+        super().tearDown()
+
+    def test_skill_list_carries_ui_fields(self):
+        r = _client(self.srv.port, "skill_list", {})
+        self.assertTrue(r["ok"])
+        sk = next(s for s in r["data"]["items"] if s["name"] == "ppt-studio")
+        self.assertEqual(sk["buttons"][0]["action"], "demo_button")
+        self.assertEqual(sk["buttons"][0]["args"], {"a": 1})
+        self.assertEqual(sk["buttons"][1]["view"], "ppt_studio")
+        self.assertEqual(sk["views"][0]["view_id"], "ppt_studio")
+
+    def test_skill_views_only_active_with_views(self):
+        r = _client(self.srv.port, "skill_views", {})
+        self.assertTrue(r["ok"])
+        items = r["data"]["items"]
+        names = {i["skill"] for i in items}
+        self.assertIn("ppt-studio", names)
+        self.assertNotIn("disabled-view", names)
+        it = next(i for i in items if i["skill"] == "ppt-studio")
+        self.assertEqual(it["views"][0]["nav_title"], "PPT 工作台")
+        self.assertEqual(it["views"][0]["handler"], "ppt_enter")
+
+    def test_demo_button_echo_min_link(self):
+        # buttons → IPC → 前端 示例链路：demo_button 回显入参
+        r = _client(self.srv.port, "demo_button", {"skill": "ppt-studio", "kind": "echo"})
+        self.assertTrue(r["ok"])
+        self.assertTrue(r["data"]["ok"])
+        self.assertEqual(r["data"]["skill"], "ppt-studio")
+        self.assertEqual(r["data"]["echo"]["kind"], "echo")
+
+
 if __name__ == "__main__":
     unittest.main()

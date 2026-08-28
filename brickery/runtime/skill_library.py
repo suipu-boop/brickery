@@ -16,6 +16,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 import time
 import urllib.request
 import urllib.error
@@ -39,6 +41,24 @@ DEFAULT_TIMEOUT = 15
 RISK_LEVELS = {"low", "medium", "high", "critical"}
 DEPENDENCY_TYPES = {"skill", "binary", "python"}
 MEMORY_SCOPES = {"session", "project", "user", "workspace", "longterm"}
+
+# —— UI 注册扩展（Step1）——
+# action / handler 受控命名：小写字母开头，仅 [a-z0-9_]，对齐后端 _h_<method> 风格。
+UI_DIRECTIVE_RE = re.compile(r"[a-z][a-z0-9_]*")
+# 能力前缀白名单（决策点 D7 控权）——Step4 起为平台「积木 UI 方法能力前缀
+# 注册表」的**单一事实源**：声明层（本文件 _normalize_ui_buttons/_normalize_ui_views）
+# 与前端 IPC 放行层（chat_ui._is_method_allowed，从本常量导入）共用同一份。
+# 积木 UI 只能声明这些前缀下的按钮/视图，防止任意按钮直接在 UI 层越权调用
+# 任意 _h_*（如 system_/file_/backup_/daemon_ 等敏感区）。新增能力域只需在此
+# 登记（如 report_/chart_），chat_ui 无需改动。
+UI_ACTION_PREFIXES = ("ppt_", "skill_", "tool_", "demo_")
+# 前缀命中但属平台管理员级的方法，显式排除（积木 UI 不可直接触发市场安装/卸载/导入）。
+UI_ACTION_BLOCKED = {
+    "skill_library_install", "skill_library_uninstall", "skill_library_upgrade",
+    "skill_library_import", "skill_toggle", "tool_toggle",
+}
+
+logger = logging.getLogger(__name__)
 
 
 def _http_get(url: str, timeout: int = DEFAULT_TIMEOUT) -> Tuple[Optional[bytes], Optional[str]]:
@@ -114,6 +134,74 @@ class SkillPackageError(ValueError):
     """技能包校验失败。"""
 
 
+def _normalize_ui_buttons(raw: object, name: str) -> list:
+    """规范化积木按钮卡（Step1：UI 注册扩展）。
+
+    契约：数组；每项 {label, action, args?, view?}；label 为非空字符串、
+    action 匹配受控命名 `^[a-z][a-z0-9_]*$` 且命中能力前缀白名单（决策点 D7 控权）。
+    非法单条**降级丢弃并告警**，绝不整包报错——保持向后兼容。
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list = []
+    for i, b in enumerate(raw):
+        if not isinstance(b, dict):
+            logger.warning("技能 %s buttons[%s] 非对象，已丢弃", name, i)
+            continue
+        label, action = b.get("label", ""), b.get("action", "")
+        if (not isinstance(label, str) or not label.strip()
+                or not isinstance(action, str)
+                or not UI_DIRECTIVE_RE.fullmatch(action)
+                or not action.startswith(UI_ACTION_PREFIXES)
+                or action in UI_ACTION_BLOCKED):
+            logger.warning(
+                "技能 %s buttons[%s] 非法（label 为空或 action 越权：%r），已丢弃",
+                name, i, action)
+            continue
+        item = {"label": label.strip(), "action": action}
+        args = b.get("args")
+        if isinstance(args, dict):
+            item["args"] = dict(args)
+        view = b.get("view")
+        if isinstance(view, str) and view.strip():
+            item["view"] = view.strip()
+        out.append(item)
+    return out
+
+
+def _normalize_ui_views(raw: object, name: str) -> list:
+    """规范化积木导航动态分区视图（Step1）。
+
+    契约：数组；每项 {nav_title, view_id, handler, icon?}；nav_title 非空字符串、
+    view_id/handler 匹配受控命名、handler 命中能力前缀白名单（D7 控权）。
+    非法单条降级丢弃并告警。
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list = []
+    for i, v in enumerate(raw):
+        if not isinstance(v, dict):
+            logger.warning("技能 %s views[%s] 非对象，已丢弃", name, i)
+            continue
+        nav_title, view_id, handler = v.get("nav_title", ""), v.get("view_id", ""), v.get("handler", "")
+        if (not all(isinstance(x, str) and x.strip() for x in (nav_title, view_id, handler))
+                or not UI_DIRECTIVE_RE.fullmatch(view_id)
+                or not UI_DIRECTIVE_RE.fullmatch(handler)
+                or not handler.startswith(UI_ACTION_PREFIXES)
+                or handler in UI_ACTION_BLOCKED):
+            logger.warning(
+                "技能 %s views[%s] 非法（nav_title/view_id/handler 不符契约或 handler 越权：%r），已丢弃",
+                name, i, handler)
+            continue
+        item = {"nav_title": nav_title.strip(), "view_id": view_id.strip(),
+                "handler": handler.strip()}
+        icon = v.get("icon", "▣")
+        if isinstance(icon, str) and icon.strip():
+            item["icon"] = icon.strip()
+        out.append(item)
+    return out
+
+
 def _normalize_brick_fields(raw: dict, name: str) -> dict:
     """校验并规范化 P0 brick 契约的 5 个字段。缺省安全值；一旦声明则严格校验。"""
     risk_level = raw.get("risk_level", "low")
@@ -178,6 +266,8 @@ def _normalize_brick_fields(raw: dict, name: str) -> dict:
         "resources": resources,
         "risk_level": risk_level,
         "composition": composition,
+        "buttons": _normalize_ui_buttons(raw.get("buttons"), name),
+        "views": _normalize_ui_views(raw.get("views"), name),
     }
 
 
@@ -258,6 +348,8 @@ def validate_skill_package(raw: dict) -> Skill:
         resources=brick["resources"],
         risk_level=brick["risk_level"],
         composition=brick["composition"],
+        buttons=brick["buttons"],
+        views=brick["views"],
     )
 
 

@@ -50,7 +50,7 @@ IPC_ALLOWED_METHODS = {
     # 工具确认（模型请求 MEDIUM/HIGH 风险工具时前端轮询裁决）
     "confirm_next", "confirm_resolve",
     # 技能库 / 工具
-    "skill_list", "skill_toggle", "skill_trigger",
+    "skill_list", "skill_toggle", "skill_trigger", "skill_views",
     "skill_library_list", "skill_library_install", "skill_library_uninstall",
     "skill_library_upgrade", "skill_library_review",
     "skill_library_import_preview", "skill_library_import",
@@ -91,6 +91,30 @@ IPC_ALLOWED_METHODS = {
     "mcp_list", "set_mode", "daemon_start", "daemon_stop", "daemon_status",
     "status", "interoception_state", "open_folder",
 }
+
+# Step1 积木 UI 动态方法放行前缀（按钮 action / 视图 handler）。
+# Step4 固化（单一事实源）：改从 skill_library.UI_ACTION_PREFIXES 导入——
+# 声明层（_normalize_ui_buttons / _normalize_ui_views 的 D7 白名单）与 IPC 放行层
+# 共用同一份「平台积木 UI 方法能力前缀注册表」，防止双副本漂移。
+# 新增能力域只需在 skill_library.UI_ACTION_PREFIXES 登记，chat_ui 零改动；
+# 命中该前缀的方法即使不在静态白名单也放行到后端，由 _h_<method> 判定存在性。
+from .skill_library import UI_ACTION_PREFIXES as UI_DYNAMIC_METHOD_PREFIXES
+
+
+def _is_method_allowed(method: str, *, stream: bool = False) -> bool:
+    """IPC method 放行判定：静态白名单 ∪ 受控动态前缀（仅非流式）。
+
+    流式通道保持静态白名单，避免积木按钮意外把风险方法当 SSE 长连接挂起；
+    动态前缀只是“允许放行到后端”，handler 存在性与参数语义仍由后端
+    _h_<method> 判定——危险方法不在受控前缀内，天然被拒。
+    """
+    if not method:
+        return False
+    if method in IPC_ALLOWED_METHODS:
+        return True
+    if stream:
+        return False
+    return any(method.startswith(p) for p in UI_DYNAMIC_METHOD_PREFIXES)
 
 
 def _ipc_call(method: str, params: Optional[Dict] = None,
@@ -357,6 +381,52 @@ PAGE_HTML = """<!DOCTYPE html>
   }
   .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .field textarea { resize: vertical; min-height: 60px; }
+  /* ---------- 视图引擎（Step3 第二小块）：加工台可交互界面 ---------- */
+  .ve-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 1000px) { .ve-grid { grid-template-columns: 1fr; } }
+  .ve-head h3 { font-family: var(--font-display); font-size: 16px; font-weight: 800; color: var(--accent); letter-spacing: 1px; }
+  .ve-field { margin-bottom: 10px; }
+  .ve-field > label { display: block; font-size: 11px; color: var(--dim); margin-bottom: 4px; font-weight: 600; }
+  .ve-field > label:has(.req)::after, .ve-field > label .req { color: var(--danger, #e5484d); }
+  .ve-field input[type="text"], .ve-field textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--line); color: var(--ink);
+    padding: 7px 10px; border-radius: 6px; font-family: inherit; font-size: 12.5px;
+  }
+  .ve-field input:focus, .ve-field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .ve-field textarea { resize: vertical; min-height: 56px; }
+  .ve-field input[type="color"] { width: 44px; height: 30px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); cursor: pointer; vertical-align: middle; }
+  .ve-color-val { font-size: 11px; color: var(--dim); margin-left: 8px; font-family: ui-monospace, monospace; }
+  .ve-list { border: 1px dashed var(--line); border-radius: 8px; padding: 8px; }
+  .ve-list-rows .ve-list-row { display: flex; gap: 8px; align-items: flex-start; border-bottom: 1px solid var(--nix-line, var(--line)); padding: 6px 0; flex-wrap: wrap; }
+  .ve-list-row .ve-field { margin-bottom: 0; flex: 1 1 160px; min-width: 120px; }
+  .ve-list-row .ve-list { flex: 1 1 100%; margin-top: 6px; }
+  .ve-list-row .ve-list-row { border-bottom: none; }
+  .btn.ve-list-del { flex: 0 0 auto; background: transparent; border: 1px solid var(--danger, #e5484d); color: var(--danger, #e5484d); padding: 4px 9px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+  .btn.ve-list-add { margin-top: 8px; background: var(--accent-soft); border: 1px dashed var(--accent); color: var(--accent); font-size: 11.5px; }
+  .ve-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .ve-actions .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .ve-actions .tag { font-size: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 1px 7px; color: var(--dim); margin-left: 6px; }
+  .ve-pane-title { font-size: 11px; font-weight: 700; color: var(--dim); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase; }
+  .ve-preview, .ve-result { min-height: 60px; }
+  .ve-preview-page { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 5px; font-size: 12px; }
+  .ve-preview-page .ve-pp-no { width: 20px; height: 20px; flex: 0 0 20px; border-radius: 6px; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 800; }
+  .ve-preview-page b { color: var(--accent); font-weight: 700; }
+  .ve-pp-bullets { margin-left: auto; font-size: 10.5px; color: var(--dim); white-space: nowrap; }
+  .ve-pp-note { font-size: 10.5px; color: var(--dim); }
+  .ve-path-box { display: flex; gap: 8px; align-items: center; background: var(--bg); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+  .ve-path-box code { font-size: 11px; color: var(--ink); word-break: break-all; flex: 1 1 auto; }
+  .ve-path-box .btn { font-size: 11px; flex: 0 0 auto; }
+  /* 应用外观（preset 变体下拉 + token 色卡） */
+  .ve-restyle { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 8px; background: var(--accent-soft, rgba(29,78,216,.06)); }
+  .ve-restyle > label { display: block; font-size: 11px; font-weight: 700; color: var(--accent); margin-bottom: 6px; letter-spacing: 1px; }
+  .ve-preset-select { width: 100%; padding: 7px 9px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+  .ve-restyle .muted-text { font-size: 10.5px; margin-top: 5px; }
+  .ve-preset-spec { font-size: 11px; color: var(--dim); margin: 6px 0 8px; }
+  .ve-swatches { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+  .ve-swatch { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px 2px 3px; }
+  .ve-chip { width: 16px; height: 16px; border-radius: 4px; display: inline-block; border: 1px solid rgba(0,0,0,.12); }
+  .err-text { color: var(--danger, #e5484d); font-size: 12px; }
+  .muted-text { color: var(--dim); font-size: 12px; }
   .engine-status { margin-bottom: var(--space-2); padding: 10px 12px; background: var(--bg); border-radius: 10px; box-shadow: var(--inset-lo); }
   .status-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
   .modal-mask { position: fixed; inset: 0; background: oklch(0.13 0.02 40 / 0.66); display: flex; align-items: center; justify-content: center; z-index: 100; animation: fadeIn 250ms var(--ease-out-expo) both; }
@@ -698,7 +768,7 @@ function switchSection(sec) {
   document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.sec === sec));
   const meta = [...NAV, ...NAV_EXT].find(n => n.id === sec);
   $("sectionTitle").innerHTML = '<span class="sec-num">ENGINE · ' + (meta ? meta.num : "") + '</span>' + (meta ? meta.title : sec);
-  const renderer = renderers[sec];
+  const renderer = renderers[sec] || (() => renderGenericView(sec));   // Step1：动态视图兜底渲染
   if (renderer) renderer();
   const _ce = $("content");
   if (_ce) { _ce.classList.remove("content-fade"); void _ce.offsetWidth; _ce.classList.add("content-fade"); }
@@ -1182,6 +1252,7 @@ async function renderSkills() {
               </div>
               ${s.summary ? `<div class="desc">${esc(s.summary)}</div>` : ""}
               ${s.trigger && s.trigger.length ? `<div class="triggers">${s.trigger.map(t => '<span class="tag">' + esc(t) + '</span>').join("")}</div>` : ""}
+              ${s.buttons && s.buttons.length ? `<div class="brick-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${s.buttons.map((b, bi) => '<button class="btn sm brick-btn" data-skill="' + esc(s.name) + '" data-action="' + esc(b.action) + '" data-args="' + esc(encodeURIComponent(JSON.stringify(b.args || {}))) + '" data-idx="' + bi + '"' + (s.disabled ? ' disabled' : '') + '>' + esc(b.label) + '</button>').join("")}</div>` : ""}
             </div>`).join("") || '<div class="empty">暂无技能</div>'}
           </div>
         </div>
@@ -1204,7 +1275,399 @@ async function renderSkills() {
         </div>
       </div>
     </div>`;
+  document.querySelectorAll("#skillList .brick-btn").forEach(btn => {
+    btn.onclick = () => invokeSkillButton(btn.dataset.skill, btn.dataset.action, btn.dataset.args);
+  });
 }
+
+/* ============ Step1：积木按钮 + 导航动态分区（工具/工作台） ============ */
+async function invokeSkillButton(skill, action, argsRaw) {
+  let args = {};
+  if (argsRaw) { try { args = JSON.parse(decodeURIComponent(argsRaw)); } catch (e) { args = {}; } }
+  args.skill = skill;
+  try {
+    const d = await ipc(action, args);
+    await appAlert((d && typeof d.message === "string" ? d.message : JSON.stringify(d)));
+  } catch (e) { await appAlert("按钮调用失败：" + e.message); }
+}
+
+let dynamicViewItems = [];   // [{sec, title, icon, skill}] 当前「工具/工作台」动态导航项
+
+async function loadDynamicViews() {
+  let items = [];
+  try { const d = await ipc("skill_views", {}); items = (d && d.items) || []; } catch (e) { return; }
+  const flat = [];
+  for (const it of items) {
+    for (const v of (it.views || [])) {
+      flat.push({ sec: v.view_id, title: v.nav_title, icon: v.icon || "▣", skill: it.skill, handler: v.handler || null });
+    }
+  }
+  dynamicViewItems = flat;
+  // 重建动态分组（启用/禁用/卸载后用 skill_views 快照驱动，移除已失效项）
+  document.querySelectorAll(".nav-dyn-group").forEach(el => el.remove());
+  if (!flat.length) return;
+  const nav = $("navList");
+  const wrapper = document.createElement("div");
+  wrapper.className = "nav-dyn-group";
+  wrapper.innerHTML = '<div class="nav-group">工具 / 工作台</div>' +
+    flat.map(x => '<div class="nav-item" data-sec="' + esc(x.sec) + '" data-skill="' + esc(x.skill) + '"><span>' + esc(x.icon + " " + x.title) + '</span></div>').join("");
+  nav.appendChild(wrapper);
+  wrapper.querySelectorAll(".nav-item").forEach(el => {
+    el.onclick = () => switchSection(el.dataset.sec);
+  });
+  // 若当前正停在已被移除的视图，回聊天空页
+  const cur = typeof currentSection === "string" ? currentSection : "chat";
+  if (cur !== "chat" && !renderers[cur] && !flat.some(x => x.sec === cur)) switchSection("chat");
+}
+
+function renderGenericView(sec) {
+  const item = dynamicViewItems.find(x => x.sec === sec);
+  const ce = $("content");
+  if (!item) { ce.innerHTML = '<div class="empty">未找到视图：' + esc(sec) + '</div>'; return; }
+  // Step3：视图声明了 handler（如 ppt-studio 的 ppt_open_studio）的，优先走可交互
+  // 视图引擎；引擎加载失败 / schema 不支持时，一律回退静态通用容器（兼容旧积木）。
+  if (item.handler) {
+    renderDynamicViewEngine(sec, item).then(ok => {
+      if (!ok) renderGenericStaticShell(sec, item, ce);
+    }).catch(() => renderGenericStaticShell(sec, item, ce));
+    return;
+  }
+  renderGenericStaticShell(sec, item, ce);
+}
+
+/* 静态通用容器（Step1 兜底）：积木 buttons 回显；无 handler 或引擎失败时使用 */
+function renderGenericStaticShell(sec, item, ce) {
+  ce.innerHTML = `
+    <div class="card">
+      <div class="hint"><b>${esc(item.icon + " " + item.title)}</b> · 积木 ${esc(item.skill)} 声明的独立界面</div>
+      <div class="hint">通用视图容器（Step1）：积木 buttons 会在此回显。</div>
+      <div id="viewButtons" class="brick-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
+    </div>`;
+  const box = $("viewButtons");
+  if (!box) return;
+  ipc("skill_list", {}).then(d => {
+    const sk = (d.items || []).find(s => s.name === item.skill);
+    const btns = (sk && sk.buttons) || [];
+    if (!btns.length) { box.innerHTML = '<span class="tag">该积木未声明按钮</span>'; return; }
+    box.innerHTML = btns.map((b, i) =>
+      '<button class="btn sm brick-btn" data-skill="' + esc(item.skill) + '" data-action="' + esc(b.action) + '" data-args="' + esc(encodeURIComponent(JSON.stringify(b.args || {}))) + '" data-idx="' + i + '">' + esc(b.label) + '</button>').join("");
+    box.querySelectorAll(".brick-btn").forEach(btn => {
+      btn.onclick = () => invokeSkillButton(btn.dataset.skill, btn.dataset.action, btn.dataset.args);
+    });
+  }).catch(() => {});
+}
+
+/* ---------- Step3 视图引擎：按运行期视图 schema 渲染可交互加工界面 ----------
+ * 数据流：进入视图 -> ipc(handler,{}) 取 {view:{schema_version, form:{fields},
+ *   actions:[{label,method,args?,disabled?,hint?}], preview:{supported,method,
+ *   args?,trigger}}}。
+ * - 表单控件：text/textarea/color + list（item_fields 递归成行）；label/默认
+ *   值/必填/placeholder 均来自 schema（field.name/label/default/required/...）；
+ * - 响应式联动：输入/列表增删/取色任一变更 -> debounce 调 preview.method，
+ *   把页序摘要（page_no/role/layout/title/bullet_count/note）渲染到预览区；
+ * - 动作区：schemat 的 actions -> 收集表单为 structure（替换 args 里 "$form"）
+ *   调对应 method，结果区展示 ok/path/pages + 复制路径（浏览器禁 file 直开，
+ *   故提供可复制路径兜底）。
+ */
+let viewCtx = null;  // {sec, skill, view}
+let viewVM = {};     // 表单聚合值树（即即将提交的 structure）
+let previewTimer = null;
+let viewPreset = null; // 当前应用的外观 preset {key, variant, semantics}（restyle 后置位，供预览沿用）
+
+function veEsc(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+function veJsonPath(path) { return JSON.stringify(path); }
+/* —— 值树（viewVM）工具 —— */
+function vePathGet(o, path) {
+  let p = o;
+  for (const k of path) { if (p == null || typeof p !== "object") return undefined; p = p[k]; }
+  return p;
+}
+function vePathSet(path, v) {
+  let o = viewVM;
+  for (let i = 0; i < path.length - 1; i++) {
+    const k = path[i], nk = path[i + 1];
+    if (o[k] == null || typeof o[k] !== "object") o[k] = /^\d+$/.test(String(nk)) ? [] : {};
+    o = o[k];
+  }
+  o[path[path.length - 1]] = v;
+}
+function vePathDel(path) {
+  const o = vePathGet(viewVM, path.slice(0, -1));
+  if (o == null) return;
+  const last = path[path.length - 1];
+  if (Array.isArray(o)) o.splice(Number(last), 1); else delete o[last];
+}
+function veVMInit(fields, path) {
+  for (const f of (fields || [])) {
+    const p = path.concat([f.name]);
+    if (f.type === "list") vePathSet(p, []);
+    else vePathSet(p, f.default != null ? f.default : "");
+  }
+}
+/* —— 表单渲染（递归支持 list / item_fields） —— */
+function veFieldHTML(field, path) {
+  const req = field.required ? ' <span class="req">*</span>' : "";
+  const pathAttr = ' data-ve-path="' + veJsonPath(path.concat([field.name])) + '"';
+  if (field.type === "list") {
+    const p = veJsonPath(path.concat([field.name]));
+    const fenc = veEsc(JSON.stringify(field));
+    return '<div class="ve-field ve-list"><label>' + veEsc(field.label || field.name) + req + '</label>' +
+      '<div class="ve-list-rows" data-ve-listpath="' + p + '" data-ve-listfield="' + fenc + '"></div>' +
+      '<button type="button" class="btn sm ve-list-add" data-ve-listpath="' + p + '" data-ve-listfield="' + fenc + '">＋ 添加 ' + veEsc((field.item_fields && field.item_fields[0]) ? (field.item_fields[0].label || "行") : "行") + '</button></div>';
+  }
+  if (field.type === "textarea") {
+    return '<div class="ve-field"><label>' + veEsc(field.label || field.name) + req + '</label><textarea' + pathAttr + '>' + veEsc(field.default || "") + '</textarea></div>';
+  }
+  if (field.type === "color") {
+    const v = field.default || "#1D4ED8";
+    return '<div class="ve-field"><label>' + veEsc(field.label || field.name) + req + '</label><input type="color"' + pathAttr + ' value="' + veEsc(v) + '"><span class="ve-color-val" id="ve-color-' + path.concat([field.name]).join("_") + '">' + veEsc(v) + '</span></div>';
+  }
+  const ph = field.placeholder ? ' placeholder="' + veEsc(field.placeholder) + '"' : "";
+  return '<div class="ve-field"><label>' + veEsc(field.label || field.name) + req + '</label><input type="text"' + pathAttr + ph + ' value="' + veEsc(field.default || "") + '"></div>';
+}
+function veRowHTML(field, rowPath) {
+  const val = vePathGet(viewVM, rowPath.concat([field.name]));
+  const req = field.required ? ' <span class="req">*</span>' : "";
+  const pathAttr = ' data-ve-path="' + veJsonPath(rowPath.concat([field.name])) + '"';
+  if (field.type === "list") return veFieldHTML(field, rowPath);
+  if (field.type === "textarea") {
+    return '<div class="ve-field"><label>' + veEsc(field.label || field.name) + req + '</label><textarea' + pathAttr + '>' + veEsc(val || "") + '</textarea></div>';
+  }
+  if (field.type === "color") {
+    const v = val || field.default || "#1D4ED8";
+    return '<div class="ve-field"><label>' + veEsc(field.label || field.name) + req + '</label><input type="color"' + pathAttr + ' value="' + veEsc(v) + '"><span class="ve-color-val">' + veEsc(v) + '</span></div>';
+  }
+  return '<div class="ve-field"><label>' + veEsc(field.label || field.name) + req + '</label><input type="text"' + pathAttr + ' value="' + veEsc(val || "") + '"></div>';
+}
+function veListRowsHTML(listPath, field) {
+  const rows = vePathGet(viewVM, listPath) || [];
+  if (!rows.length) return '<div class="muted-text">（空，点击上方“添加”新增一行）</div>';
+  return rows.map((row, ri) => {
+    const rowPath = listPath.concat([ri]);
+    return '<div class="ve-list-row" data-ve-rowpath="' + veJsonPath(rowPath) + '">' +
+      (field.item_fields || []).map(f => veRowHTML(f, rowPath)).join("") +
+      '<button type="button" class="btn ve-list-del" data-ve-rowpath="' + veJsonPath(rowPath) + '">删除</button></div>';
+  }).join("");
+}
+function veMaterializeLists(scope) {
+  scope.querySelectorAll("[data-ve-listpath]").forEach(el => {
+    if (el.querySelector(".ve-list-row")) return;
+    const field = JSON.parse(el.dataset.veListfield);
+    el.innerHTML = veListRowsHTML(JSON.parse(el.dataset.veListpath), field);
+    veMaterializeLists(el);
+  });
+}
+/* —— 视图引擎主入口 —— */
+async function renderDynamicViewEngine(sec, item) {
+  let d = null;
+  try { d = await ipc(item.handler, {}) || {}; }
+  catch (e) { return false; }
+  const view = d.view || ((d.data || {}).view);
+  if (!(view && view.form && view.actions)) return false;
+  viewCtx = { sec: sec, skill: item.skill, view: view };
+  viewVM = {};
+  veVMInit(view.form.fields, []);
+  const formHTML = (view.form.fields || []).map(f => veFieldHTML(f, [])).join("");
+  const actsHTML = (view.actions || []).map(a => {
+    // 带 presets 的 action（如「应用外观」ppt_restyle）渲染为预置变体下拉：
+    // 选中即调用对应 method 并即时刷新预览配色，不再渲染为普通按钮。
+    if (a.presets && a.presets.length) {
+      const defKey = a.default_preset || (a.presets[0] && a.presets[0].key);
+      const opts = a.presets.map(p =>
+        '<option value="' + veEsc(p.key) + '"' +
+        (p.key === defKey ? ' selected' : "") +
+        '>' + veEsc(p.label || p.key) + '</option>').join("");
+      return '<div class="ve-field ve-restyle"><label>' + veEsc(a.label || a.method) + '</label>' +
+        '<select class="ve-preset-select" data-ve-action="' + veEsc(a.method) + '">' + opts + '</select>' +
+        '<div class="muted-text">' + veEsc(a.hint || "选中变体即应用外观并刷新预览") + '</div></div>';
+    }
+    const dis = a.disabled ? ' disabled title="' + veEsc(a.hint || "该动作暂未开放") + '"' : "";
+    return '<button type="button" class="btn" data-ve-action="' + veEsc(a.method) + '"' + dis + '>' + veEsc(a.label || a.method) + (a.disabled ? ' <span class="tag">占位</span>' : "") + '</button>';
+  }).join("");
+  const ce = $("content");
+  ce.innerHTML = `
+    <div class="card ve-form-card">
+      <div class="ve-head"><h3>${veEsc(view.title || item.title)}</h3>
+        <div class="hint">积木 ${veEsc(item.skill)} · 视图 ${veEsc(view.view_id || sec)} · schema v${veEsc(view.schema_version || 1)}</div></div>
+      <div class="ve-grid">
+        <div class="ve-left">
+          <form id="viewForm" onsubmit="return false">${formHTML}</form>
+          <div class="ve-actions">${actsHTML}</div>
+        </div>
+        <div class="ve-right">
+          <div class="card ve-pane"><div class="ve-pane-title">实时预览</div>
+            <div id="viewPreview" class="ve-preview"><div class="muted-text">修改表单后自动预览</div></div></div>
+          <div class="card ve-pane"><div class="ve-pane-title">生成结果</div>
+            <div id="viewResult" class="ve-result"><div class="muted-text">点击「生成 PPT」后显示结果</div></div></div>
+        </div>
+      </div>
+    </div>`;
+  veMaterializeLists(ce);
+  const formEl = $("viewForm");
+  if (formEl) {
+    formEl.addEventListener("input", veOnFormInput);
+    formEl.addEventListener("click", veOnFormClick);
+  }
+  ce.querySelectorAll("[data-ve-action]").forEach(b => {
+    if (b.tagName === "SELECT") b.addEventListener("change", () => veRunRestyle(b.dataset.veAction));
+    else b.addEventListener("click", () => veRunAction(b.dataset.veAction));
+  });
+  veSchedulePreview();
+  return true;
+}
+/* —— 交互联动 —— */
+function veOnFormInput(e) {
+  const t = e.target;
+  const path = t.dataset && t.dataset.vePath ? JSON.parse(t.dataset.vePath) : null;
+  if (!path) return;
+  vePathSet(path, t.value);
+  const lab = $("ve-color-" + path.join("_"));
+  if (t.type === "color" && lab) lab.textContent = t.value;
+  veSchedulePreview();
+}
+function veOnFormClick(e) {
+  const del = e.target.closest(".ve-list-del");
+  if (del) { veDelRow(JSON.parse(del.dataset.veRowpath)); return; }
+  const add = e.target.closest(".ve-list-add");
+  if (add) { veAddRow(JSON.parse(add.dataset.veListpath), JSON.parse(add.dataset.veListfield)); }
+}
+function veDelRow(rowPath) {
+  vePathDel(rowPath);
+  veRerenderList(rowPath.slice(0, -1));
+  veSchedulePreview();
+}
+function veAddRow(listPath, field) {
+  const rows = vePathGet(viewVM, listPath) || [];
+  vePathSet(listPath.concat([rows.length]), {});
+  veRerenderList(listPath);
+  veSchedulePreview();
+}
+function veRerenderList(listPath) {
+  const el = $("content").querySelector('[data-ve-listpath="' + veJsonPath(listPath) + '"]');
+  if (!el) return;
+  const field = JSON.parse(el.dataset.veListfield);
+  el.innerHTML = veListRowsHTML(listPath, field);
+  veMaterializeLists(el);
+}
+function veSchedulePreview() {
+  if (previewTimer) clearTimeout(previewTimer);
+  previewTimer = setTimeout(veRenderPreview, 260);
+}
+function veRebind(args, structure) {
+  const out = {};
+  for (const k in args) out[k] = (args[k] === "$form") ? structure : args[k];
+  return out;
+}
+async function veRenderPreview() {
+  const ctx = viewCtx;
+  const pv = $("viewPreview");
+  if (!ctx || !pv) return;
+  const preview = (ctx.view.preview && ctx.view.preview.supported) ? ctx.view.preview : null;
+  if (!preview) return;
+  pv.innerHTML = '<div class="muted-text">预览计算中…</div>';
+  try {
+    const args = veRebind(preview.args || {}, vePathGet(viewVM, []));
+    // 已「应用外观」选过变体时，实时预览沿用同一 variant/semantics（配色一致）
+    if (viewPreset) { args.variant = viewPreset.variant; args.semantics = viewPreset.semantics; }
+    const d = await ipc(preview.method, args) || {};
+    if (Array.isArray(d.pages)) {
+      if (!d.pages.length) { pv.innerHTML = '<div class="muted-text">无可预览页面</div>'; return; }
+      pv.innerHTML = d.pages.map(p =>
+        '<div class="ve-preview-page"><span class="ve-pp-no">' + veEsc(p.page_no) + '</span>' +
+        '<b>' + veEsc(p.role) + '</b><span>' + veEsc(p.layout) + '</span>' +
+        (p.title ? '<span class="ve-pp-title">&nbsp;·&nbsp;' + veEsc(p.title) + '</span>' : "") +
+        '<span class="ve-pp-bullets">' + veEsc(p.bullet_count || 0) + ' 要点</span>' +
+        '<span class="ve-pp-note">' + veEsc(p.note || "") + '</span></div>').join("");
+    } else {
+      pv.innerHTML = '<div class="err-text">' + veEsc(d.error || "预览失败") + '</div>';
+    }
+  } catch (e) {
+    if (pv) pv.innerHTML = '<div class="err-text">预览失败：' + veEsc((e && e.message) ? e.message : e) + '</div>';
+  }
+}
+/* 「应用外观」：选中预置变体后应用并即时刷新预览配色。
+ * - 将当前表单结构 + 选中 preset -> ppt_restyle，后端返回 token 摘要 + 页序；
+ * - token 摘要（品牌色/背景/文本/强调色等色卡）渲染到结果区；
+ * - 记录当前 preset（variant/semantics），让后续实时预览沿用同一外观；随后
+ *   veRenderPreview() 立即重取页序以反映新配色。 */
+async function veRunRestyle(method) {
+  const ctx = viewCtx;
+  if (!ctx) return;
+  const a = (ctx.view.actions || []).find(x => x.method === method);
+  const sel = document.querySelector('[data-ve-action="' + method + '"]');
+  const opt = (sel && sel.selectedOptions && sel.selectedOptions[0]) || null;
+  const preset = opt ? opt.value : (a && a.default_preset);
+  const rs = $("viewResult");
+  if (rs) rs.innerHTML = '<div class="muted-text">应用外观中…</div>';
+  try {
+    const args = veRebind((a && a.args) || {}, vePathGet(viewVM, []));
+    if (!("structure" in args)) args.structure = vePathGet(viewVM, []);
+    if (preset) args.preset = preset;
+    const d = await ipc(method, args) || {};
+    if (d.ok) {
+      const tok = d.tokens || {};
+      const swatchKeys = ["brand", "background", "surface", "text",
+        "text_muted", "text_on_accent", "accent", "accent_strong",
+        "accent_soft", "gradient_from", "gradient_to"];
+      const sw = swatchKeys.filter(k => tok[k]).map(k =>
+        '<span class="ve-swatch"><i class="ve-chip" style="background:#' + veEsc(tok[k]) + '"></i>' +
+        veEsc(k) + ' <code style="font-size:10px">#' + veEsc(tok[k]) + '</code></span>').join("");
+      const p = d.preset || {};
+      viewPreset = { key: p.key, variant: p.variant, semantics: p.semantics };
+      rs.innerHTML = '<div class="ve-result-ok">外观已应用：' + veEsc(p.label || p.key || "") + '</div>' +
+        '<div class="ve-preset-spec">变体 ' + veEsc(p.variant || "") + ' · ' +
+        veEsc(p.semantics || "") + ' · 预览 ' +
+        veEsc(d.rendered !== undefined ? d.rendered : 0) + ' 页</div>' +
+        '<div class="ve-swatches">' + sw + '</div>';
+      // 立即刷新页序预览以反映新配色
+      veRenderPreview();
+    } else {
+      rs.innerHTML = '<div class="err-text">' + veEsc(d.error || "应用外观失败") + '</div>';
+    }
+  } catch (e) {
+    if (rs) rs.innerHTML = '<div class="err-text">应用外观失败：' + veEsc((e && e.message) ? e.message : e) + '</div>';
+  }
+}
+async function veRunAction(method) {
+  const ctx = viewCtx;
+  if (!ctx) return;
+  const a = (ctx.view.actions || []).find(x => x.method === method);
+  if (a && a.disabled) return;
+  const rs = $("viewResult");
+  if (rs) rs.innerHTML = '<div class="muted-text">执行中…</div>';
+  try {
+    const d = await ipc(method, veRebind((a && a.args) || {}, vePathGet(viewVM, []))) || {};
+    if (d.ok) {
+      rs.innerHTML = '<div class="ve-result-ok">执行成功</div>' +
+        '<div class="ve-path-box"><code>' + veEsc(d.path || "") + '</code>' +
+        '<button type="button" class="btn sm" data-ve-copy="1">复制路径</button></div>' +
+        '<div class="muted-text">页数：' + veEsc(d.pages !== undefined ? d.pages : "—") + '</div>';
+      const cp = rs.querySelector("[data-ve-copy]");
+      if (cp) cp.onclick = veCopyPath;
+    } else {
+      rs.innerHTML = '<div class="err-text">' + veEsc(d.error || "执行失败") + '</div>';
+    }
+  } catch (e) {
+    if (rs) rs.innerHTML = '<div class="err-text">执行失败：' + veEsc((e && e.message) ? e.message : e) + '</div>';
+  }
+}
+async function veCopyPath() {
+  const rs = $("viewResult");
+  const code = rs && rs.querySelector("code");
+  if (!code) return;
+  const txt = code.textContent;
+  try { await navigator.clipboard.writeText(txt); await appAlert("路径已复制到剪贴板"); }
+  catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); await appAlert("路径已复制到剪贴板"); }
+    catch (e2) { await appAlert("复制失败，请手动复制：\\n" + txt); }
+    document.body.removeChild(ta);
+  }
+}
+/* ============ /Step1 积木按钮 + 导航动态分区 ============ */
 async function toggleSkill(name, on) {
   try { await ipc("skill_toggle", { name, disabled: !on }); } catch (e) { await appAlert("操作失败：" + e.message); }
 }
@@ -2740,6 +3203,7 @@ const renderers = {
 
 /* ================= 初始化 ================= */
 buildNav();
+loadDynamicViews();   // Step1 动态分区：注册「工具/工作台」入口（skill_views 快照驱动）
 switchSection("chat");
 loadStatus();
 setInterval(loadStatus, 15000);
@@ -2818,7 +3282,7 @@ class _Handler(BaseHTTPRequestHandler):
     def _ipc(self, data: Dict) -> None:
         method = data.get("method", "")
         params = data.get("params") or {}
-        if not method or method not in IPC_ALLOWED_METHODS:
+        if not _is_method_allowed(method, stream=bool(data.get("stream"))):
             self._send(403, {"ok": False, "error": f"method 不在白名单：{method}"})
             return
         if data.get("stream"):

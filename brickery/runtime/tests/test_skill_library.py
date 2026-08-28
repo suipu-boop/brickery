@@ -137,6 +137,90 @@ class TestFixtureRepo(TestCase):
         self.assertFalse((self.home / "skills.json").exists())
 
 
+class TestUiContract(TestCase):
+    """Step1：积木 UI 注册扩展（buttons / views）契约翻译与 D7 控权校验。
+
+    非法**单条**丢弃并告警、绝不整包报错——保持对既有积木的向后兼容。
+    """
+
+    def _pkg(self, **ui):
+        pkg = {"name": "ui-test", "trigger": ["ui"], "content": "c"}
+        pkg.update(ui)
+        return validate_skill_package(pkg)
+
+    def test_valid_package_keeps_buttons_and_views(self):
+        s = self._pkg(
+            buttons=[
+                {"label": "运行演示", "action": "demo_button", "args": {"kind": "echo"}},
+                {"label": "查看结果", "action": "ppt_preview", "view": "ppt_studio"},
+            ],
+            views=[
+                {"nav_title": "PPT 工作台", "view_id": "ppt_studio", "handler": "ppt_enter", "icon": "work"},
+                {"nav_title": "二级视图", "view_id": "ppt_studio_2", "handler": "ppt_enter_2"},
+            ],
+        )
+        self.assertEqual([b["action"] for b in s.buttons], ["demo_button", "ppt_preview"])
+        self.assertEqual(s.buttons[0]["args"], {"kind": "echo"})
+        self.assertEqual(s.buttons[1]["view"], "ppt_studio")
+        self.assertEqual(s.views[0]["nav_title"], "PPT 工作台")
+        self.assertEqual(s.views[0]["handler"], "ppt_enter")
+        # icon 缺省回退默认图标
+        self.assertEqual(s.views[1]["icon"], "▣")
+
+    def test_missing_ui_fields_yield_empty_lists(self):
+        s = self._pkg()
+        self.assertEqual(s.buttons, [])
+        self.assertEqual(s.views, [])
+
+    def test_oversight_handler_rejected(self):
+        # 越权 action / handler：非受限前缀（system_/file_/backup_/daemon_ 等）一律丢弃
+        s = self._pkg(
+            buttons=[
+                {"label": "重启", "action": "system_restart"},
+                {"label": "删库", "action": "file_delete"},
+                {"label": "正常", "action": "demo_button"},
+            ],
+            views=[{"nav_title": "系统", "view_id": "sys", "handler": "system_exec"}],
+        )
+        self.assertEqual([b["action"] for b in s.buttons], ["demo_button"])
+        self.assertEqual(s.views, [])
+
+    def test_platform_admin_methods_blocked(self):
+        # 前缀命中但属平台管理员级方法（市场安装/卸载/导入）同样拒绝
+        s = self._pkg(
+            buttons=[{"label": "装市场", "action": "skill_library_install"},
+                     {"label": "导包", "action": "skill_library_import"}],
+            views=[{"nav_title": "市场", "view_id": "mkt", "handler": "skill_library_install"}],
+        )
+        self.assertEqual(s.buttons, [])
+        self.assertEqual(s.views, [])
+
+    def test_bad_directive_shape_is_dropped(self):
+        # 非法命名（大写 / 连字符 / 空 label / 空 action / 非 dict args）单条丢弃
+        s = self._pkg(
+            buttons=[
+                {"label": "X", "action": "DemoBtn"},      # 大写开头
+                {"label": "X", "action": "ppt-preview"},  # 连字符
+                {"label": "", "action": "demo_button"},   # 空 label
+                {"label": "tag-arg", "action": "demo_button", "args": "not-dict"},
+            ],
+            views=[
+                {"nav_title": "a", "view_id": "Bad-Id", "handler": "ppt_enter"},
+                {"nav_title": "", "view_id": "ok_id", "handler": "ppt_enter"},
+            ],
+        )
+        self.assertEqual(s.buttons, [{"label": "tag-arg", "action": "demo_button"}])
+        self.assertEqual(s.views, [])
+
+    def test_non_list_ui_fields_safe(self):
+        s = self._pkg(
+            buttons={"label": "x", "action": "demo_button"},
+            views="not-a-list",
+        )
+        self.assertEqual(s.buttons, [])
+        self.assertEqual(s.views, [])
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()
