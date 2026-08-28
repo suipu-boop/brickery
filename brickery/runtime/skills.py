@@ -50,6 +50,10 @@ class Skill:
     risk_level: str = "low"                                  # 风险分级
     composition: dict = field(default_factory=dict)          # 组合规则 + 记忆域归属
 
+    # —— UI 注册扩展（Step1：积木自带按钮 + 导航动态分区，缺省安全）——
+    buttons: List[dict] = field(default_factory=list)  # UI 按钮卡：{label, action, args?, view?}
+    views: List[dict] = field(default_factory=list)    # 动态分区视图：{nav_title, view_id, handler, icon?}
+
 class SkillRegistry:
     def __init__(self):
         self._skills: dict[str, Skill] = {}
@@ -126,6 +130,8 @@ class SkillRegistry:
                 **({"resources": s.resources} if s.resources else {}),
                 **({"risk_level": s.risk_level} if s.risk_level != "low" else {}),
                 **({"composition": s.composition} if s.composition else {}),
+                **({"buttons": s.buttons} if s.buttons else {}),
+                **({"views": s.views} if s.views else {}),
             }
             for s in self._skills.values()
             if s.source != "builtin"
@@ -169,6 +175,12 @@ class SkillRegistry:
             comp = item.get("composition") or {}
             if not isinstance(comp, dict):
                 comp = {}
+            buttons = item.get("buttons") or []
+            if not isinstance(buttons, list):
+                buttons = []
+            views = item.get("views") or []
+            if not isinstance(views, list):
+                views = []
             self.register(Skill(
                 name=str(item["name"]),
                 trigger=[str(t) for t in trigger],
@@ -194,6 +206,8 @@ class SkillRegistry:
                 resources=res,
                 risk_level=str(item.get("risk_level", "low") or "low"),
                 composition=comp,
+                buttons=[dict(b) for b in buttons if isinstance(b, dict)],
+                views=[dict(v) for v in views if isinstance(v, dict)],
             ))
             n += 1
         return n

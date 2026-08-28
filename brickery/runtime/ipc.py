@@ -1137,7 +1137,10 @@ class IpcServer:
                 # marketplace / 分级注入扩展字段（UI 展示用）
                 "summary": s.summary, "version": s.version,
                 "author": s.author, "category": s.category,
-                "source": s.source, "installed_at": s.installed_at}
+                "source": s.source, "installed_at": s.installed_at,
+                # UI 注册扩展（Step1：积木按钮卡 + 导航动态分区）
+                "buttons": [dict(b) for b in s.buttons],
+                "views": [dict(v) for v in s.views]}
 
     @staticmethod
     def _tool_dict(t: Tool) -> dict:
@@ -1150,6 +1153,350 @@ class IpcServer:
 
     def _h_skill_list(self, params):
         return {"items": [self._skill_dict(s) for s in self.skills.all()]}
+
+    def _h_skill_views(self, params):
+        """只读：导航「工具/工作台」动态分区数据（Step1，前端一次拉取）。
+
+        仅返回**启用且声明了 views** 的技能；前端据此生成/移除动态导航项
+        （启用时注册、禁用/卸载时移除，由 skill_list/view 快照驱动同步）。
+        """
+        items = []
+        for s in self.skills.all():
+            if s.disabled or not s.views:
+                continue
+            items.append({
+                "skill": s.name,
+                "buttons": [dict(b) for b in s.buttons],
+                "views": [dict(v) for v in s.views],
+            })
+        return {"items": items}
+
+    def _h_demo_button(self, params):
+        """Step1 最小链路示例按钮：验证 buttons → IPC → 前端回显全链路。"""
+        return {"ok": True,
+                "message": "Demo 按钮已触发：buttons → IPC → 前端 最小链路打通",
+                "skill": params.get("skill", ""),
+                "echo": params}
+
+    @staticmethod
+    def _ppt_generator_module():
+        """返回 ppt_brick.generator（延迟导入 + 最小 sys.path 接线）。
+
+        运行副本布局：<brickery>/runtime/ipc.py 与 <brickery>/ppt_brick/ 同级，
+        ipc.py 依赖相对导入，运行时 brickery 目录已处于 sys.path；
+        此处仅保险起见把含 ppt_brick/generator.py 的根目录补进 sys.path，
+        不改其它业务代码、不影响无 ppt_brick 的环境。
+        """
+        _sys = sys
+        here = Path(__file__).resolve()
+        candidates = (here.parents[1], here.parents[1].parent)  # <brickery> 及上一级
+        for cand in candidates:
+            if (cand / "ppt_brick" / "generator.py").is_file():
+                sp = str(cand)
+                if sp not in _sys.path:
+                    _sys.path.insert(0, sp)
+                break
+        from ppt_brick import generator
+        return generator
+
+    def _h_ppt_generate(self, params):
+        """PPT 积木：structure ⟶ .pptx 真实落盘（输出到 home/output_pptx/）。"""
+        generator = self._ppt_generator_module()
+
+        structure = params.get("structure") or {}
+        if not str(structure.get("title") or "").strip():
+            raise ValueError("structure.title 不能为空")
+        sections = structure.get("sections")
+        if not isinstance(sections, list) or not sections:
+            raise ValueError("structure.sections 必须是非空列表")
+
+        out_dir = self.config.home / "output_pptx"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        fname = str(params.get("filename") or "deck.pptx").strip() or "deck.pptx"
+        if not fname.lower().endswith(".pptx"):
+            fname = (Path(fname).stem or "deck") + ".pptx"
+        out_path = out_dir / Path(fname).name  # 只取 basename，防路径逃逸
+
+        generated = generator.generate_pptx(
+            structure,
+            out_path=str(out_path),
+            variant=str(params.get("variant") or "通用"),
+            semantics=str(params.get("semantics") or "light"),
+            layout_ids=params.get("layout_ids"),
+        )
+
+        pages = 0
+        try:
+            from pptx import Presentation
+            pages = len(Presentation(generated).slides)
+        except Exception:  # noqa: BLE001  # 运行环境缺 python-pptx 时 pages 兜底为 0
+            pass
+        return {"ok": True, "path": str(generated), "pages": pages}
+
+    # ------------------------------------------------------------------
+    # Step3：PPT 加工台视图契约（可复用加工视图定义 schema）
+    # ------------------------------------------------------------------
+    # 加工视图定义 = 运行期由「视图 handler」（views[].handler 对应的 IPC
+    # method，如 ppt_open_studio) 返回的 dict，前端据它渲染可交互界面：
+    #   form.fields[]  控件：{name,label,type,default,required,placeholder?,
+    #                  options?, item_fields?}
+    #                  type ∈ text/textarea/color/list（list 为可增删列表，
+    #                  用 item_fields 递归声明子字段）
+    #   actions[]      {label, method, args?, disabled?, hint?}，method 需
+    #                  命中受控前缀（ppt_ 等）才被 _is_method_allowed 放行
+    #   preview        {supported, method, args?, trigger?} 实时预览声明
+    # 静态 brick.json 的 views 字段保持 {nav_title, view_id, handler, icon?}
+    # 不变（向后兼容 Step1 已登记条目），可交互 schema 全部走运行期返回。
+
+    @staticmethod
+    def _ppt_studio_view():
+        """ppt-studio「PPT 加工台」可交互视图定义（纯数据，无副作用）。
+
+        structure 聚合规则：所有表单控件值聚合为一个 dict，顶层字段即
+        form.fields[].name（sections 为 list 控件，值为 item_fields 聚合
+        的 dict 列表）；action/preview 的 args 里 "$form" 即被前端替换成
+        该聚合 structure，从而与 generate/preview handler 的入参对齐。
+        """
+        return {
+            "schema_version": 1,
+            "view_id": "ppt_studio",
+            "title": "PPT 加工台",
+            "skill": "ppt-studio",
+            "form": {
+                "field_order": [
+                    "title", "subtitle", "author", "date",
+                    "brand_color", "sections",
+                ],
+                "fields": [
+                    {"name": "title", "label": "演示标题", "type": "text",
+                     "default": "", "required": True,
+                     "placeholder": "例如：示例项目汇报"},
+                    {"name": "subtitle", "label": "副标题", "type": "text",
+                     "default": "", "required": False},
+                    {"name": "author", "label": "作者", "type": "text",
+                     "default": "", "required": False},
+                    {"name": "date", "label": "日期", "type": "text",
+                     "default": "", "required": False,
+                     "placeholder": "如 2026-08-27"},
+                    {"name": "brand_color", "label": "品牌色", "type": "color",
+                     "default": "#1D4ED8", "required": False},
+                    {"name": "sections", "label": "章节",
+                     "type": "list", "required": True,
+                     "item_fields": [
+                         {"name": "title", "label": "章节标题",
+                          "type": "text", "required": True},
+                         {"name": "bullets", "label": "要点",
+                          "type": "list", "required": False,
+                          "item_fields": [
+                              {"name": "text", "label": "要点", "type": "text",
+                               "required": True},
+                          ]},
+                     ]},
+                ],
+            },
+            "actions": [
+                {"label": "生成 PPT", "method": "ppt_generate",
+                 "args": {"skill": "ppt-studio", "structure": "$form"}},
+                {"label": "应用外观", "method": "ppt_restyle",
+                 "args": {"structure": "$form"},
+                 # 带 presets 的 action 由前端渲染为「预置变体」下拉控件
+                 # （control=preset），选中即应用并即时刷新预览配色。
+                 "control": "preset",
+                 "default_preset": "general",
+                 "hint": "在预置外观变体间切换（配色/语气/明暗），选中即生效并刷新预览",
+                 "presets": [
+                     {"key": "general", "label": "通用",
+                      "variant": "通用", "semantics": "light"},
+                     {"key": "consulting", "label": "咨询",
+                      "variant": "咨询", "semantics": "light"},
+                     {"key": "investment", "label": "投行",
+                      "variant": "投行", "semantics": "light"},
+                     {"key": "dark", "label": "深色",
+                      "variant": "通用", "semantics": "dark"},
+                     {"key": "light", "label": "浅色",
+                      "variant": "通用", "semantics": "light"},
+                 ]},
+            ],
+            "preview": {
+                "supported": True,
+                "method": "ppt_preview",
+                "args": {"structure": "$form"},
+                "trigger": "on_change",
+            },
+        }
+
+    def _h_ppt_open_studio(self, params):
+        """返回 ppt-studio「PPT 加工台」可交互视图定义（运行期 schema）。
+
+        前端进入该 view 时调用（views[].handler = ppt_open_studio）：
+        拿到 form/actions/preview 后渲染可交互控件，不再回退 Step1 静态
+        容器。纯只读，无副作用。
+        """
+        view = self._ppt_studio_view()
+        return {"ok": True, "skill": "ppt-studio", "view_id": view["view_id"],
+                "view": view}
+
+    def _h_ppt_preview(self, params):
+        """PPT 加工台实时预览：structure -> 逐页轻量摘要（不落盘）。
+
+        - 必填校验与 _h_ppt_generate 完全一致（title 非空、sections 非空
+          list）；structure 不合法返回 {ok:False, error}，不下发异常。
+        - 用 build_deck 产出中间态（不调 render_pptx，不落盘）：以渲染后
+          Slide 数量为准，逐页映射 {page_no, role, layout, title,
+          bullet_count, note}，供前端实时预览渲染。
+        - 版式/主题派生与 generate 对齐（brand 缺失 DEFAULT_BRAND 兜底）。
+        """
+        generator = self._ppt_generator_module()
+        structure = params.get("structure") or {}
+        if not str(structure.get("title") or "").strip():
+            return {"ok": False, "error": "structure.title 不能为空"}
+        sections = structure.get("sections")
+        if not isinstance(sections, list) or not sections:
+            return {"ok": False, "error": "structure.sections 必须是非空列表"}
+        layout_ids = params.get("layout_ids")
+        try:
+            tokens = generator.theme.derive_tokens(
+                str(structure.get("brand_color") or generator.DEFAULT_BRAND),
+                variant=str(params.get("variant") or "通用"),
+                semantics=str(params.get("semantics") or "light"))
+            slides = generator.build_deck(
+                tokens, dict(structure), layout_ids=layout_ids)
+        except Exception as exc:  # noqa: BLE001  # 结构/版式不合法 -> 软失败
+            return {"ok": False, "error": f"预览失败：{exc}"}
+
+        return {"ok": True,
+                "pages": self._ppt_pages(generator, structure, layout_ids),
+                "rendered": len(slides)}
+
+    def _ppt_pages(self, generator, structure, layout_ids):
+        """structure -> 逐页预览页序摘要（cover/toc/...，与 build_deck 对齐）。
+
+        - 用 plan_deck 产出页面规划，再按 layout_ids（剔除/替换）解析每个
+          role 的版式名；与 build_deck 渲染行为保持一致（未定义版式的 role
+          跳过），供 preview / restyle 共用同一页序映射。
+        - 纯只读、不落盘。
+        """
+        plans = generator.plan_deck(structure)
+        ids = dict(generator.DEFAULT_LAYOUT_IDS)
+        if layout_ids:
+            for role, name in layout_ids.items():
+                if name is None:
+                    ids.pop(role, None)
+                else:
+                    ids[role] = name
+
+        pages = []
+        for plan in plans:
+            role = plan["role"]
+            lay_name = ids.get(role)
+            if lay_name is None:
+                continue  # 与 build_deck 一致：该 role 未渲染
+            data = plan.get("data") or {}
+            note = str(data.get("note") or "").strip()
+            if role == "content" and not note:
+                note = f"{plan['page']} / {plan['total']}"
+            pages.append({
+                "page_no": plan["page"],
+                "role": role,
+                "layout": lay_name,
+                "title": str(data.get("title") or ""),
+                "bullet_count": len(data.get("items") or []),
+                "note": note,
+            })
+        return pages
+
+    # 预置外观变体（preset 清单）：由 theme 的 variant(语气档) ×
+    # semantics(明暗) 两轴派生；key 稳定供前端下拉、label 为用户可读名。
+    # 「深色/浅色」为明暗档快捷入口（浅色即通用档的 light 语义）。
+    PPT_RESTYLE_PRESETS = (
+        ("general", "通用", "通用", "light"),
+        ("consulting", "咨询", "咨询", "light"),
+        ("investment", "投行", "投行", "light"),
+        ("dark", "深色", "通用", "dark"),
+        ("light", "浅色", "通用", "light"),
+    )
+
+    def _ppt_restyle_presets(self) -> List[dict]:
+        """五档预置外观变体清单（纯数据；与视图定义 actions[].presets 同源）。"""
+        return [
+            {"key": key, "label": label,
+             "variant": variant, "semantics": semantics}
+            for key, label, variant, semantics in self.PPT_RESTYLE_PRESETS
+        ]
+
+    def _h_ppt_restyle(self, params):
+        """PPT 加工台「应用外观」：在预置外观变体间切换并即时刷新预览配色。
+
+        - 入参：{structure?, preset?, brand_color?, layout_ids?}；
+          preset 缺省取 "general"（与视图定义 default_preset 一致）。
+        - preset -> 由 theme 体系派生 token（variant=语气档、semantics=明暗、
+          brand=structure.brand_color，缺省 DEFAULT_BRAND 兜底）。
+        - 返回：{ok, preset(当前选中), presets(全部可选+当前), tokens(token
+          摘要：品牌色/背景/表面/文本/强调色/渐变等), spec(variant/semantics/
+          source)}；structure 提供的合法时附预览页序 pages + rendered 页数。
+        - 软失败：未知 preset / 非法品牌色 -> {ok:False, error}，不外抛。
+        - 纯只读：不落盘、不触生成流程。
+        """
+        presets = self._ppt_restyle_presets()
+        preset_key = str(params.get("preset") or "general")
+        preset = next((p for p in presets if p["key"] == preset_key), None)
+        if preset is None:
+            return {
+                "ok": False,
+                "error": f"未知外观预设 '{preset_key}'，可选："
+                + "、".join(f"{p['key']}({p['label']})" for p in presets),
+            }
+
+        structure = params.get("structure") or {}
+        brand = str(structure.get("brand_color") or params.get("brand_color")
+                    or "")
+        try:
+            generator = self._ppt_generator_module()
+            if not brand:
+                brand = generator.DEFAULT_BRAND
+            tokens = generator.theme.derive_tokens(
+                brand, variant=preset["variant"], semantics=preset["semantics"])
+        except Exception as exc:  # noqa: BLE001  # 非法 hex / theme 异常 -> 软失败
+            return {"ok": False, "error": f"外观应用失败：{exc}"}
+
+        resolved = tokens["resolved"]
+        summary = {
+            "brand": tokens["primitives"]["brand"],
+            "background": resolved["background"],
+            "surface": resolved["surface"],
+            "text": resolved["text"],
+            "text_muted": resolved["text_muted"],
+            "text_on_accent": resolved["text_on_accent"],
+            "accent": resolved["accent"],
+            "accent_strong": resolved["accent_strong"],
+            "accent_soft": resolved["accent_soft"],
+            "gradient_from": resolved["gradient_from"],
+            "gradient_to": resolved["gradient_to"],
+        }
+        out = {
+            "ok": True,
+            "preset": preset,
+            "presets": presets,
+            "tokens": summary,
+            "spec": {
+                "variant": preset["variant"],
+                "semantics": preset["semantics"],
+                "source": tokens["spec"]["source"],
+            },
+        }
+        # structure 已提供且合法 -> 附被预览页序（换肤后所见即所预览）；
+        # 否则（纯换肤调用）省略页序，仍返回 token 摘要。
+        try:
+            slides = generator.build_deck(
+                tokens, dict(structure), layout_ids=params.get("layout_ids"))
+            out["pages"] = self._ppt_pages(
+                generator, structure, params.get("layout_ids"))
+            out["rendered"] = len(slides)
+        except Exception:  # noqa: BLE001  # 结构不完整或缺 sections -> 无页序
+            out["pages"] = []
+            out["rendered"] = 0
+        return out
 
     def _h_tool_list(self, params):
         return {"items": [self._tool_dict(t) for t in self.tools.all()]}

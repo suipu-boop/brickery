@@ -43,3 +43,7 @@ class Skill:
     resources: dict = field(default_factory=dict)           # 资源需求（冲突检测）
     risk_level: str = "low"                                  # 风险分级
     composition: dict = field(default_factory=dict)          # 组合规则 + 记忆域归属
+
+    # —— UI 注册扩展（Step1：积木自带按钮 + 导航动态分区，缺省安全）——
+    buttons: List[dict] = field(default_factory=list)  # UI 按钮卡：{label, action, args?, view?}
+    views: List[dict] = field(default_factory=list)    # 动态分区视图：{nav_title, view_id, handler, icon?}
