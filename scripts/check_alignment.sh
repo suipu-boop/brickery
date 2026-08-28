@@ -4,7 +4,7 @@
 # 四层核对 + vault 三层积木清单对照，输出一致性矩阵：
 #   L1 仓库层   本地 main vs origin/main HEAD / 未提交改动
 #   L2 副本层   运行副本 brickery 包 vs 本地内核（逐文件 sha256）
-#   L3 远端层   本地 HEAD vs GitHub API 远端 main HEAD
+#   L3 远端层   本地 HEAD vs 远端 main（git ls-remote 主通道，GitHub API 辅通道，重试+退避）
 #   L4 进程层   端口 18765/18766/18767 探活
 #   V  vault 层 vault 真身 vs brick-vault 本地 vs 远端 main
 #
@@ -28,7 +28,11 @@ COPIES=(
   "/Applications/shadelingmac0.0.1.app/Contents/Resources/brickery-runtime/brickery:生成app运行副本"
   "/Applications/BrickeryWorkbench.app/Contents/Resources/brickery-runtime/brickery:工坊app运行副本"
 )
-PORTS=(18765 18766 18767)
+PORTS=(
+  "18765:生成app-ipc:required"
+  "18766:工坊app:optional"
+  "18767:生成app-chat:required"
+)
 VAULT_DIR="${HOME}/.brickery/vault/bricks"
 VAULT_LOCAL="/Users/suipu/Dev/brick-vault/bricks"
 CORE_REPO="/Users/suipu/Dev/brickery"
@@ -63,16 +67,26 @@ git_origin() { git -C "$1" rev-parse "origin/$2" 2>/dev/null || echo ""; }
 git_dirty() { [ -n "$(git -C "$1" status --porcelain 2>/dev/null)" ] && echo "dirty" || echo "clean"; }
 
 # remote_sha <repo目录名> → 远端 main sha 或空（api 失败降级 git ls-remote）
-remote_sha() {
-  local name="$1" s=""
+remote_sha() { # remote_sha <repo目录名> → 远端 main sha 或空
+  local name="$1" s="" try
   # 目录名 → 远端仓库名映射（brick-vault 本地目录对应 shadeling-bricks 仓库）
   case "${name}" in
     brick-vault) name="shadeling-bricks" ;;
   esac
-  s="$(curl -fsS --retry 2 --retry-all-errors --max-time 12 "https://api.github.com/repos/${GH_OWNER}/${name}/commits/main" 2>/dev/null \
-    | python3 -c 'import sys,json; print(json.load(sys.stdin)["sha"])' 2>/dev/null || echo '')"
+  # 主通道：git ls-remote（免 GitHub API 限流）；重试 2 次 + 线性退避（1s/2s）
+  for try in 1 2 3; do
+    s="$(git -c http.lowSpeedLimit=500 -c http.lowSpeedTime=12 ls-remote "https://github.com/${GH_OWNER}/${name}.git" refs/heads/main 2>/dev/null | cut -f1)"
+    [ -n "${s}" ] && break
+    [ "${try}" -lt 3 ] && sleep "${try}"
+  done
+  # 辅通道：GitHub API（仅主通道失败时），同样重试退避
   if [ -z "${s}" ]; then
-    s="$(git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=10 ls-remote "https://github.com/${GH_OWNER}/${name}.git" refs/heads/main 2>/dev/null | cut -f1)"
+    for try in 1 2 3; do
+      s="$(curl -fsS --max-time 10 "https://api.github.com/repos/${GH_OWNER}/${name}/commits/main" 2>/dev/null \
+        | python3 -c 'import sys,json; print(json.load(sys.stdin)["sha"])' 2>/dev/null || echo '')"
+      [ -n "${s}" ] && break
+      [ "${try}" -lt 3 ] && sleep "${try}"
+    done
   fi
   echo "${s}"
 }
@@ -169,7 +183,7 @@ l3_remote() {
     fi
     remote="$(remote_sha "${name}")"
     if [ -z "${remote}" ]; then
-      mark SKIP "L3 ${name} 远端不可达（离线/限流），本地=${head:0:12}"
+      mark SKIP "L3 ${name} 远端不可达（限流降级：ls-remote+API 均失败），本地=${head:0:12}"
       continue
     fi
     if [ "${head}" = "${remote}" ]; then
@@ -185,15 +199,19 @@ l4_procs() {
   say ""
   say "== [L4] 进程层：端口探活 =="
   [ "${SCOPE}" = "repo" ] && { mark SKIP "L4 进程层仅本机模式执行"; return; }
-  for p in "${PORTS[@]}"; do
-    local line
+  for entry in "${PORTS[@]}"; do
+    local p rest label req line pid
+    p="${entry%%:*}"; rest="${entry#*:}"; label="${rest%%:*}"; req="${rest##*:}"
     line="$(lsof -nP -iTCP:${p} -sTCP:LISTEN 2>/dev/null | tail -n +2 | head -1)"
     if [ -n "${line}" ]; then
-      local pid
       pid="$(echo "${line}" | awk '{print $2}')"
-      mark PASS "L4 端口 ${p} 监听中（pid=${pid}）"
+      mark PASS "L4 端口 ${p} 监听中（${label}，pid=${pid}）"
     else
-      mark FAIL "L4 端口 ${p} 未监听"
+      if [ "${req}" = "optional" ]; then
+        mark WARN "L4 端口 ${p} 未监听（${label}，可选：对应 app 未运行，非缺陷）"
+      else
+        mark FAIL "L4 端口 ${p} 未监听（${label}）"
+      fi
     fi
   done
 }
