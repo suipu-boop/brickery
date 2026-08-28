@@ -58,6 +58,19 @@ scripts/upload_release_asset.sh suipu-boop/brickery-workbench v0.1.0 \
 - 在本次发布的对话/文档中记录：新包 md5、上传后的 asset id、站点核对结果。
 - 未完成发布流程前，不认为本次合并"已发布"。
 
+### 第 6 步：一致性自检（可选但推荐）
+
+发布/合并 main 前，运行仓库自带一致性校验脚本，确认三侧仓库、运行副本、远端与 vault 无意外漂移：
+
+```bash
+bash scripts/check_alignment.sh            # 本机全量（仓库/副本/远端/进程/vault 四层 + vault 清单）
+bash scripts/check_alignment.sh --scope=repo   # CI 用（仅仓库层 + 远端层，退出码作门禁）
+```
+
+- 退出码 0 = 全部通过（含 SKIP/WARN）；1 = 存在 FAIL（本地副本未同步、端口未监听、远端不一致等）。
+- 该脚本已在 CI（`.github/workflows/ci.yml` 的 `alignment` job）中执行 `--scope=repo` 模式作为门禁。
+- 本机全量模式覆盖运行副本与 vault 真身，发布前建议跑一次确认无 FAIL。
+
 ## 与快速迭代通道的衔接
 
 日常测试阶段允许「先改运行中副本、重启即测、再同步仓库」的快速通道（见 `specs/agent-test-feedback-loop.md` 第 5 步，已确立）。但该通道只解决「本机即时生效」，**不改变本规范的发布义务**：

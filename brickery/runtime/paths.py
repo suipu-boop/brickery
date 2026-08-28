@@ -21,6 +21,16 @@ DEFAULT_BACKUP = Path.home() / "Documents" / "Brickery" / "Backups"
 ENV_OUTPUT = "BRICKERY_OUTPUT_DIR"
 DEFAULT_OUTPUT = Path.home() / "Documents" / "Brickery" / "Output"
 
+# —— 单一真源（auto-follow-single-source）：远端仓库常量统一收敛于此 ——
+# 域名 + 仓库双白名单：仅允许 suipu-boop 组织下这三个仓库作为自动跟随真源。
+DEFAULT_VAULT_REPO = "https://github.com/suipu-boop/shadeling-bricks.git"
+DEFAULT_CORE_REPO = "https://github.com/suipu-boop/brickery.git"
+DEFAULT_WORKBENCH_REPO = "https://github.com/suipu-boop/brickery-workbench.git"
+# 工坊 web 在线直连索引（已有雏形，供 server.py 引用收敛；不落盘）
+DEFAULT_SKILL_REPO_INDEX = (
+    "https://raw.githubusercontent.com/suipu-boop/shadeling-bricks/main/skills/index.json"
+)
+
 
 def get_home() -> Path:
     """返回 Brickery 运行时根目录，不存在则创建。"""

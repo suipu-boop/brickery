@@ -479,6 +479,30 @@ def _bundle_runtime(resources: Path) -> None:
     )
     # P4：内嵌 python（含 llama_cpp）随包携带，目标机无系统 python3 也能启动
     _bundle_embedded_python(resources)
+    # 写 runtime 版本标识（self_update 自检更新依据；打包源优先 base）
+    _write_runtime_version(dst)
+
+
+def _write_runtime_version(brick_pkg: Path) -> None:
+    """在打包的 brickery 包内写入 version.json（self_update 的本地版本标识）。
+
+    core_commit 取本地 brickery 仓库 HEAD（开发机打包时本地=远端 main 基线一致；
+    base 拉取源同源于 GitHub，HEAD 语义相同）。取不到时置空串，不影响打包。
+    """
+    repo = Path(__file__).resolve().parents[1]
+    sha = ""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5)
+        if out.returncode == 0:
+            sha = out.stdout.strip()
+    except Exception:  # noqa: BLE001
+        sha = ""
+    v = {"schema": "brickery-version/v1", "core_commit": sha,
+         "built_at": _now_iso(), "previous": ""}
+    (brick_pkg / "version.json").write_text(
+        json.dumps(v, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _bundle_embedded_python(resources: Path) -> None:
