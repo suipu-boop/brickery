@@ -1,3 +1,14 @@
+---
+AIGC:
+    Label: "1"
+    ContentProducer: 001191440300708461136T1XGW3
+    ProduceID: 1ff3ab34626ddcd667748776b4e29487_62de6f19a34d11f1bc17525400826444
+    ReservedCode1: JKtwLpq8w9tsd1ub/y4nJYiZgHYQ54uO3n4YzRMbHPt5G+togZqDimB8tmanUQqlMBSkWsXYqNEAMCdbmCBj9AFeGIK2GYKSVROmq1hyQEU6U5Mc39efCaQ8z2q18fwJDd3gzBVSJpshR8+L27IKzBkLkwUo9JOobOKslx+ysxdOG4+5vS8DBarEQ4M=
+    ContentPropagator: 001191440300708461136T1XGW3
+    PropagateID: 1ff3ab34626ddcd667748776b4e29487_62de6f19a34d11f1bc17525400826444
+    ReservedCode2: JKtwLpq8w9tsd1ub/y4nJYiZgHYQ54uO3n4YzRMbHPt5G+togZqDimB8tmanUQqlMBSkWsXYqNEAMCdbmCBj9AFeGIK2GYKSVROmq1hyQEU6U5Mc39efCaQ8z2q18fwJDd3gzBVSJpshR8+L27IKzBkLkwUo9JOobOKslx+ysxdOG4+5vS8DBarEQ4M=
+---
+
 # 会话交接 · 完全原生 app 改造（新会话从这里开始）
 
 > 生成时间：2026-08-29 09:1x
@@ -39,3 +50,4 @@
 - 运行副本 Python 3.12（依赖以 3.12 为准，勿用仓库 3.14 .venv）
 - 技能静态加载：IpcServer 启动时一次性 load，改 skills.json 需重启
 - 用户规则：称呼"老板"、禁用 emoji；先落 specs 供拍板；kill/重启先告知请求确认；不直推 main（方案类改动先落盘）
+*（内容由AI生成，仅供参考）*
