@@ -11,7 +11,7 @@ AIGC:
 
 # M1 产品线瘦身 · 实施 specs
 
-> 状态：待确认（2026-08-29 随朴确认后执行）
+> 状态：已执行（2026-08-29）
 > 依据：product-line-simplify-native-v2.md（全部已拍板）、handoff-native-app-v2.md
 > 盘点：file-agent 2026-08-29（只读，未改动任何文件）
 
@@ -66,3 +66,27 @@ AIGC:
 2. **skill-repo 与 vault skills/ 重叠取舍**：默认以 vault 现有版本为基准（skill-repo 可能是旧发布源），仅补 vault 缺失内容。若老板要求以 skill-repo 为准则调整。
 3. 归档目录位置约定为 `~/Dev/archive/`，后续 M2-M5 不再触碰。
 *（内容由AI生成，仅供参考）*
+
+## 五、执行结果记录（2026-08-29 已执行）
+
+| # | 动作 | 实际结果 | 关键证据 |
+|---|---|---|---|
+| A1 | 提交推送 brickery specs | ✅ 完成 | commit `d26ef6e`，已推送 origin/main（3 文件：handoff-native-app-v2.md / product-line-simplify-native-v2.md / m1-product-line-slim.md） |
+| A2 | 归档 factory / meta / workbench | ✅ 完成 | 三仓库各打 tag `archive-2026-08-29`，整体移入 `~/Dev/archive/`（.git 与历史完整保留）；原路径写入 README.md 指针 |
+| A3 | skill-repo 并入 brick-vault | ✅ 完成 | 四个技能目录与 vault `skills/` 逐项 diff 完全一致（IDENTICAL），vault 无缺失内容，未新增/覆盖/删除任何文件；vault skills/index.json 已覆盖全部 4 技能，无需修改；差异核对记录见 temp/a3-skill-merge-diff-record.md |
+| A4 | 冻结 skill-repo | ✅ 完成 | `~/Dev/shadeling-skill-repo` → `~/Dev/archive/shadeling-skill-repo` |
+| A5 | brick-vault 冻结标记 | ✅ 完成 | 新增 `/Users/suipu/Dev/brick-vault/FROZEN.md`，22 积木分类齐全，未删除任何目录 |
+| A6 | 产品线文档更新 | ✅ 完成 | 本文件状态行已改"已执行"，本节约为执行记录 |
+
+归档后目录布局（~/Dev 现状）：
+
+| 路径 | 说明 |
+|---|---|
+| /Users/suipu/Dev/brickery | 内核仓库（主开发） |
+| /Users/suipu/Dev/brick-vault | 积木仓库（保留活跃 ppt-studio/vault + 工具层 docwrite，其余冻结） |
+| /Users/suipu/Dev/Shadeling | app 仓库 |
+| /Users/suipu/Dev/archive/brickery-factory | 已冻结（tag archive-2026-08-29） |
+| /Users/suipu/Dev/archive/brickery-meta | 已冻结（tag archive-2026-08-29） |
+| /Users/suipu/Dev/archive/brickery-workbench | 已冻结（tag archive-2026-08-29） |
+| /Users/suipu/Dev/archive/shadeling-skill-repo | 已冻结（旧技能发布源，内容已并入 vault） |
+
