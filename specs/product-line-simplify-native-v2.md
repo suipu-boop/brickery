@@ -1,6 +1,6 @@
 # 产品线简化 + 完全原生 app（v2）
 
-> 状态：已拍板主体（2026-08-29 随朴）｜待确认：积木名单细节
+> 状态：全部已拍板（2026-08-29 随朴）｜下一步：M1 产品线瘦身实施 specs 待确认
 > 背景：2026-08-16 拍板「独立 app + 内嵌 web（WKWebView）」（specs/native-webview.md）运行两周后，稳定性不达标：入口混乱、缓存反复、刷新不出内容。用户决定整体大改：**完全 app、剔除积木工坊、简化产品线**。
 
 ## 一、为什么内嵌 web 形态不稳定（复盘）
@@ -67,8 +67,8 @@
 - **工具型积木**（无独立 UI，收进底座工具层，能力供 UI 积木与聊天调用）：
   - **docwrite + document-writer**（文档生成一组）：docwrite 为积木声明（ToolBrick，provides_tool=DocWrite），document-writer 为技能包（LLM 内容决策指令），配套生成 docx / xlsx / pptx，六套模板，纯 stdlib 零 token；**因支撑 PPT 生成链路必须保留**。
 - **high-config-doc（DocWritePro）—— 冻结**：高配文档引擎积木，运行时下载 ~193MB editor_sdk 做复杂排版，违背简化/稳定方向，本轮不保留、不随 app 分发；内核实现（docwrite_pro.py / edsdk_pro.py）保留不删，留作将来评估。
-- **demo-studio**（平台 UI 验证）：待确认是否作为正式积木（建议仅开发期工具）。
-- **其余基础能力积木收进底座**：ax / backup-restore / browser / code-quality-chain / doctor / engine-api / engine-local / feishu / hello-marvis / mcp / meeting-minutes / multi-agent / rules / scheduler / skill-library / telegram / visualize —— 作为底座原生功能，不再以积木形式存在。
+- **demo-studio**（平台 UI 验证）：**不留，仅作开发期验证工具**，不作为正式积木随 app 分发（2026-08-29 拍板）。
+- **其余基础能力积木收进底座**：ax / backup-restore / browser / code-quality-chain / doctor / engine-api / engine-local / feishu / hello-marvis / mcp / meeting-minutes / multi-agent / rules / scheduler / skill-library / telegram / visualize —— 作为底座原生功能，不再以积木形式存在。（2026-08-29 拍板：17 个功能**全部第一批收进底座**，不分优先级，M3 一次全收）
 - **shadeling-skill-repo 归并**：技能市场源（document-writer / meeting-minutes / pdf-extractor / code-reviewer）整体并入 brick-vault，仓库归档。
 - **后续积木生产**：原生 UI 框架成型后增量生产，新积木一律原生 UI。
 
@@ -112,12 +112,13 @@
 |---|---|---|
 | M1 产品线瘦身 | 归档 workbench / meta / factory，明确三核心 | 产品线文档更新，仓库归档冻结 |
 | M2 原生底座落地 | SwiftUI app 迁入，原生引导 + 聊天直连 IPC | 双击 .app = 原生窗口，无浏览器、无 web 服务 |
-| M3 基础功能原生化 | 19 小积木按优先级分批收进底座（原生 UI） | 基础能力全走原生界面，无 web 依赖 |
-| M4 积木 UI 原生框架 | 原生 view 注册机制 + ppt-studio / demo-studio 原生重写 | 积木 UI 原生渲染，直连 IPC |
+| M3 基础功能原生化 | 17 个基础功能收进底座（原生 UI，一次全收） | 基础能力全走原生界面，无 web 依赖 |
+| M4 积木 UI 原生框架 | 原生 view 注册机制 + ppt-studio 原生重写（demo-studio 已剔除） | 积木 UI 原生渲染，直连 IPC |
 | M5 发布闭环 | 签名公证、DMG、CI 单测 | 可分发、可自动构建 |
 
 ## 七、待确认
 
-1. **「两个大积木」名单确认**：ppt-studio + demo-studio 是否即指这两个？demo-studio 是平台验证积木，正式产品中是否保留（还是仅开发期使用）？
-2. **19 个基础积木收进底座的优先级**：哪些第一批原生落地（建议：聊天周边 / 文件 / 浏览器 / 定时任务 / 备份），哪些可后置？
-3. **brick-vault 现有 21 个积木目录**：除两个大积木外，其余目录是否冻结归档（不再维护），随底座内置快照只取必要能力？
+1. ~~「两个大积木」名单 / demo-studio 是否保留~~ → **已拍板（2026-08-29）：demo-studio 不留，仅开发期验证工具，不作为正式积木分发。**
+2. ~~19 个基础积木收进底座的优先级~~ → **已拍板（2026-08-29）：17 个基础功能全部第一批收进底座，不分优先级，M3 一次全收。**
+3. ~~brick-vault 其余积木目录是否冻结归档~~ → **已拍板（2026-08-29）：其余目录冻结归档（不删），底座只取必要能力做内置快照。**
+4. ~~M1 归并动作~~ → **已拍板（2026-08-29）：workbench / meta / factory 归档冻结（不删历史）+ shadeling-skill-repo 并入 brick-vault。**
