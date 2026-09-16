@@ -145,6 +145,7 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
    规划见 `specs/brick-factory.md`——用户：不急着动手，待启动
 2. **好玩积木方向**：平台可扩展性证明——任何能力都能做成积木，含娱乐向
    （如内置小游戏：贪吃蛇/2048/扫雷，做成 ServiceBrick），随时可做——待用户发想
+3. **跨平台开发方向**（已拍板 2026-09-16）：同一仓库 + 双平台适配层（`platform/mac.py`、`platform/win.py`）+ Git 同步代码 + ROADMAP/白皮书同步状态；不采用"Mac/Windows 分别开发 + 传文件同步"——Windows 适配任务待启动
 
 ## 下一步（2026-08-18 续做）
 
@@ -153,6 +154,7 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 3. **端到端实测**：安装产出 agent → 引导配置 → 聊天 → 积木调用全链路
 4. **P6 积木市场**：BrickMarket 接 web 工作台热插拔（brick-vault 在线浏览/安装）
 5. **browser 积木收尾**：Chrome 扩展需用户手动安装后方能完整使用
+6. **Windows 适配**（待启动）：平台适配层 `platform/win.py` + run.bat/ps1 + exe 打包；核心资产（assembler/brick_runtime/engine/memory/skill_library/web）纯 Python 跨平台不用改
 
 > 新会话唤醒句：继续 /Users/suipu/Dev/brickery 的积木平台，先读 ROADMAP.md 对齐阶段。
 
