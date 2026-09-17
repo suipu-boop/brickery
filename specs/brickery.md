@@ -40,12 +40,8 @@ AIGC:
 
 | 模块 | 职责 | 来源 |
 |------|------|------|
-| `assembler.py` | 静态组装：依赖/冲突/资源校验，产出方案 | 从 Shadeling 迁移（零依赖） |
 | `brick_runtime.py` | 动态激活协议：BrickLike 生命周期，委托宿主内核机制 | 从 Shadeling 迁移（Skill 依赖解耦到 skill_contract） |
 | `skill_contract.py` | 积木契约：Skill 数据类（brick.json 直映射） | 从 Shadeling skills.py 提取纯数据部分 |
-| `produce.py` | 产出链路：方案 → 独立安装包（mode：base=预置7 / full=预置+按需17） | 新建 |
-| `web/server.py` | 本地 Web 面板后端（127.0.0.1） | 新建 |
-| `web/index.html` | 组装工作台前端（拖拽 UI） | 新建 |
 | `runtime/setup_wizard.py` | 安装引导页（八家 API 预设 + 本地 GGUF 推荐下载 + 验证，写 config.json） | 新建（2026-08-16） |
 | `runtime/chat_ui.py` | 本地 web 聊天界面（工坊蓝图风，走引擎路由） | 新建（2026-08-16） |
 | `runtime/ipc.py` | 服务层：启动扫描 home/bricks 激活积木 + 引擎路由 + 未配置引导 | 迁入（B5）+ 扩展（2026-08-16） |
@@ -61,7 +57,6 @@ AIGC:
 | 聊天界面 | `runtime/chat_ui.py`（127.0.0.1:18767） | 本地 web 聊天界面（工坊蓝图风），走引擎路由，未配置时跳引导 |
 | 积木激活 | `runtime/ipc.py` `_activate_bricks` | 启动扫描 `home/bricks/*/brick.json` 按形态激活，故障域隔离 |
 | 积木市场 | `runtime/skill_library.py` `BrickMarket` | market_list / install / toggle(.disabled) / uninstall 全流程 |
-| 出包 | `produce.py` | mode：base=预置7 / full=预置+按需17；内置10 写死内核不打包；agent.json 记 mode |
 | 测试 | `runtime/tests` | 全量 195 passed（runtime 195） |
 
 **积木分层清单**（用户拍板）：

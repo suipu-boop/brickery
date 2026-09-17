@@ -16,7 +16,7 @@
 | 项目 | 定位 | 边界（管什么） | 不管什么 |
 |------|------|--------------|---------|
 | **积木工坊**（Workbench） | 面向用户的组装+分发端 | 积木市场浏览、选积木、组装、产出 agent 安装包、网页下载站、Release 发布 | 积木生产、内核运行时 |
-| **生成 agent**（Agent Forge） | agent 底座+产出链路 | 内核运行时、装配、安装引导、聊天界面、.brick 打包/导入 | 积木内容生产、市场分发 |
+| **生成 agent**（Agent Forge） | agent 底座 | 内核运行时、安装引导、聊天界面、积木激活/市场、.brick 打包/导入 | 积木内容生产、市场分发 |
 | **积木加工厂**（Brick Factory） | 积木生产端 | 积木创建/编辑/打包/测试/发布、brick.json 契约、验收闸门 | agent 组装、用户分发 |
 
 ## 三、三者联系（每个会话都能看到）
@@ -29,7 +29,7 @@
 ┌─────────────┐   积木(brick.json/.brick)   ┌─────────────┐
 │  积木加工厂  │ ──────────────────────────▶ │   积木工坊   │
 └─────────────┘                             └──────┬──────┘
-                                                    │ 组装+产出
+                                                    │ 产出
                                                     ▼
                                           ┌─────────────────┐
                                           │   生成 agent     │
@@ -44,13 +44,13 @@
 | 仓库 | 内容 | 定位 |
 |------|------|------|
 | `brickery-workbench` | app/、web/、site/、brickery/web/（工坊后端）、build 脚本、工坊 specs | 积木工坊 |
-| `brickery`（保留改名定位） | brickery/ 内核（去 web/）、runtime/、produce 链路、装配/引导/聊天 specs | 生成 agent |
+| `brickery`（保留改名定位） | brickery/ 内核（去 web/）、runtime/、引导/聊天 specs | 生成 agent |
 | `brick-vault`（已有） | 积木库 + 加工厂契约 | 积木加工厂 |
 | `brickery-meta`（新增） | ARCHITECTURE.md 三项目关系/接口契约/会话协议 | 顶层导航 |
 
 ### 内核共享决策（2026-08-22 拍板 A 时确认）
 
-- 工坊后端 `brickery/web/server.py` 依赖内核 `assembler/produce/package`（组装+产出 agent 链路）
+- 工坊后端 `brickery/web/server.py` 依赖内核运行时/契约能力（本条为 2026-08-22 决策记录；`assembler/produce` 组装链路已于 2026-09-16 方向修正后移除）
 - 决策：**内核单权威**——`brickery` 仓库为唯一内核源；工坊构建时从 GitHub 拉取内核并合并自己的 `brickery/web/`（工坊本就是在线工具，可接受）
 - `app/`（Swift 壳）为两项目共享组件，**双仓库各存一份**，改动需同步（记入 ARCHITECTURE.md 共享组件清单）
 

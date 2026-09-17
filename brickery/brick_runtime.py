@@ -1,6 +1,6 @@
 """BrickLike 运行时 · P4 动态激活层。
 
-把静态组装方案（AssemblyPlan）里的积木，按 `specs/brick-runtime.md` 契约真正
+把静态方案（AssemblyPlan）里的积木，按 `specs/brick-runtime.md` 契约真正
 「激活」进内核。四种积木形态归一成一个生命周期协议，委托内核现有机制，不另起
 炉灶：
 
@@ -669,8 +669,7 @@ def build_brick(raw: dict, skills_registry, connector_factory=None,
 class BrickRuntime:
     """动态激活编排器：读积木完整清单 → 构造适配器 → 按 plan 激活 → 汇总状态。
 
-    与 assembler.load_vault 的分工：后者产出「静态视图 + 方案」；本类产出
-    「活着的适配器 + 运行时状态」。静态校验通过后再调用 activate。
+    产出「活着的适配器 + 运行时状态」；静态方案校验通过后调用 activate。
     """
 
     def __init__(self, vault_root: str, skills_registry,

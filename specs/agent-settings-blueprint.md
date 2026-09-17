@@ -63,7 +63,7 @@ AIGC:
 ## 三、同步与验证
 1. 改完先本地语法自测（`python -m py_compile`）。
 2. 同步 `~/.brickery/base/brickery`（cp 覆盖 chat_ui.py / setup_wizard.py）。
-3. 由主链路重新 produce 产出 agent（桌面 shadeling），确认包内代码更新。
+3. 重新构建/安装桌面 shadeling，确认包内代码更新。
 4. 用户重装后验证：引导保存 → 自动进聊天页；设置页分区布局与蓝本一致。
 
 ## 四、待确认

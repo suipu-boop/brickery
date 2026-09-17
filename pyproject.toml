@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "brickery"
 version = "0.1.0"
-description = "Brickery —— 独立的「造 agent 的工厂」内核：assembler / brick_runtime / memory / runtime 引擎"
+description = "Brickery —— agent 底座内核：brick_runtime / skill_contract / memory / runtime 引擎"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 dependencies = []

@@ -5,7 +5,7 @@
 #   L1 仓库层   本地 main vs origin/main HEAD / 未提交改动
 #   L2 副本层   运行副本 brickery 包 vs 本地内核（逐文件 sha256）
 #   L3 远端层   本地 HEAD vs 远端 main（git ls-remote 主通道，GitHub API 辅通道，重试+退避）
-#   L4 进程层   端口 18765/18766/18767 探活
+#   L4 进程层   端口 18765 探活
 #   V  vault 层 vault 真身 vs brick-vault 本地 vs 远端 main
 #
 # 用法:
@@ -30,8 +30,6 @@ COPIES=(
 )
 PORTS=(
   "18765:生成app-ipc:required"
-  "18766:工坊app:optional"
-  "18767:生成app-chat:required"
 )
 VAULT_DIR="${HOME}/.brickery/vault/bricks"
 VAULT_LOCAL="/Users/suipu/Dev/brick-vault/bricks"
