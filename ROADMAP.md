@@ -22,9 +22,9 @@ AIGC:
 
 ## 定位（一句话）
 
-**别名**：积木平台 / 造 agent 的工厂 / brickery —— 均指本仓库 `/Users/suipu/Dev/brickery`。
+**别名**：积木平台 / 底座 / brickery —— 均指本仓库 `/Users/suipu/Dev/brickery`。
 
-brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的品牌产品。产出 agent 本地独立运行，不依赖 Shadeling。
+brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的品牌产品。底座 agent 本地独立运行，不依赖 Shadeling。
 
 ## 当前状态
 
@@ -135,26 +135,32 @@ brickery = 平台（拥有心脏/内核运行时），Shadeling = 它产出的�
 1. **memory-* 积木去留**：记忆系统 8 能力已写死进内核，对应 memory-* 积木是彻底移除还是保留为开关（默认开可关）——已拍板：保留为开关（默认开可关），2026-08-16 已实施（config.memory_enabled + ipc 桩对象，见 specs/memory-toggle.md）
 2. **P4 .dmg 打包时机**：重出包到 /Applications，重打 DMG 到桌面验证——用户：不急着打包，暂缓
 3. **P5 Shadeling 接入**：作为第一个成品——待启动
-4. **P6 积木市场**：BrickMarket 已就绪，接 web 工作台热插拔——待启动
+4. **P6 积木市场**：BrickMarket 已就绪，底座内热插拔（不再接 web 工作台组装）——待启动
 5. **白皮书定位**：保持内部规划文档（不硬塞商业化蓝本）；商业化蓝本另开 `docs/whitepaper.md` 一事——用户：不着急，不分心，暂缓
 
 ## 待拍板事项（2026-08-18 记录）
 
 1. **积木加工厂（Brickery Factory）**：定位已确认（工坊=消费积木，加工厂=生产积木），
    形态选独立 web 面板（端口 8767），实施顺序：脚手架+验证器 → 编辑器 → 发布同步；
-   规划见 `specs/brick-factory.md`——用户：不急着动手，待启动
+   规划见 `specs/brick-factory.md`——**已拍板（2026-09-17）：冻结归档，不删历史**，与 brickery-workbench 同等待遇，未来生态需要时解冻
 2. **好玩积木方向**：平台可扩展性证明——任何能力都能做成积木，含娱乐向
    （如内置小游戏：贪吃蛇/2048/扫雷，做成 ServiceBrick），随时可做——待用户发想
 3. **跨平台开发方向**（已拍板 2026-09-16）：同一仓库 + 双平台适配层（`platform/mac.py`、`platform/win.py`）+ Git 同步代码 + ROADMAP/白皮书同步状态；不采用"Mac/Windows 分别开发 + 传文件同步"——Windows 适配任务待启动
 
-## 下一步（2026-08-18 续做）
+## 方向修正（2026-09-16）
 
-1. **用户测试安装**：从 GitHub Release v0.1.0 下载 dmg 重装验证（今天已下载 104M 到本地，明天测试安装）
-2. **工坊产出 agent 安装包**：走 web 工作台选积木 → 组装 → 产出（路径写死桌面），验证同步按钮与产出链路
-3. **端到端实测**：安装产出 agent → 引导配置 → 聊天 → 积木调用全链路
-4. **P6 积木市场**：BrickMarket 接 web 工作台热插拔（brick-vault 在线浏览/安装）
-5. **browser 积木收尾**：Chrome 扩展需用户手动安装后方能完整使用
-6. **Windows 适配**（待启动）：平台适配层 `platform/win.py` + run.bat/ps1 + exe 打包；核心资产（assembler/brick_runtime/engine/memory/skill_library/web）纯 Python 跨平台不用改
+**放弃组装步骤，底座即完整成品**（用户拍板）：
+- 不再走"选积木 → 组装 → 产出独立 agent 安装包"链路；底座（完整可运行 agent，含安装引导/聊天/积木激活/积木市场）直接做完整，经 GitHub Release 下载安装即可
+- 白皮书 `specs/brickery.md` 原"造 agent 的工厂"组装定位降级为历史，以本小节为准
+- 2026-08-17 主工作线路（装工坊 app → 产出安装包 → 自测）已废止
+
+## 下一步（2026-09-16 续做）
+
+1. **用户测试安装**：从 GitHub Release 下载底座 dmg 安装验证
+2. **端到端实测**：安装底座 → 引导配置 → 聊天 → 积木调用全链路
+3. **P6 积木市场**：BrickMarket 热插拔（底座内在线浏览/安装 brick-vault 积木）
+4. **browser 积木收尾**：Chrome 扩展需用户手动安装后方能完整使用
+5. **Windows 适配**（待启动）：平台适配层 `platform/win.py` + run.bat/ps1 + exe 打包；核心资产（brick_runtime/engine/memory/skill_library）纯 Python 跨平台不用改
 
 > 新会话唤醒句：继续 /Users/suipu/Dev/brickery 的积木平台，先读 ROADMAP.md 对齐阶段。
 
